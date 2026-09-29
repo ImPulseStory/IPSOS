@@ -1,6 +1,6 @@
 FILES = ./build/kernel.asm.o ./build/kernel.o
-FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0
-
+FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0 \
+        -fno-stack-protector -mno-red-zone -mstackrealign
 all:
 	nasm -f bin ./src/boot.asm -o ./bin/boot.bin
 	nasm -f elf32 -g ./src/kernel.asm -o ./build/kernel.asm.o

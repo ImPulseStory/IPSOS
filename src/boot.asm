@@ -13,7 +13,6 @@ start:
     mov es, ax
     mov ss, ax
     mov sp, 0x7c00
-    sti
 
     ; --- читаем kernel ---
     mov ax, KERNEL_LOAD_SEG
@@ -75,10 +74,13 @@ PModeMain:
     mov ss, ax
     mov gs, ax
     mov esp, 0x90000
+    and esp, 0xFFFFFFF0
 
     in al, 0x92
     or al, 2
     out 0x92, al
+
+    mov al, 0xFF 
 
     jmp CODE_OFFSET:0x10000   ; <-- kernel по 0x10000
 
