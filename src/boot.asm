@@ -13,8 +13,7 @@ start:
     mov es, ax
     mov ss, ax
     mov sp, 0x7c00
-
-    ; --- читаем kernel ---
+    
     mov ax, KERNEL_LOAD_SEG
     mov es, ax
     xor bx, bx
@@ -49,7 +48,7 @@ gdt_code:
     db 0x00
     db 10011010b
     db 11001111b
-    db 0x00          ; <-- добавил
+    db 0x00         
 
 gdt_data:
     dw 0xFFFF
@@ -82,7 +81,7 @@ PModeMain:
 
     mov al, 0xFF 
 
-    jmp CODE_OFFSET:0x10000   ; <-- kernel по 0x10000
+    jmp CODE_OFFSET:0x10000
 
 times 510 - ($ - $$) db 0
 dw 0xAA55
