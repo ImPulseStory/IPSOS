@@ -1,5 +1,6 @@
 #include "pic.h"
 #include <stdarg.h>
+#include <stdbool.h>
 
 #define WHITE_ON_BLACK 0x0F
 
@@ -12,7 +13,7 @@ volatile unsigned short *vga = (volatile unsigned short *) 0xB8000;
 int str = 0;
 int prev_index = 0;
 int char_index = 0;
-
+int pr_index = 0;
 
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
@@ -36,10 +37,33 @@ void scroll() {
     }
 }
 
+void print(const char *c) {
+    while (*c != '\0') {
+        int cursor = str * 80 + pr_index;
+        if (*c == '\n') {
+            str++;
+            pr_index = 0;
+        } else {
+            vga[cursor] = (WHITE_ON_BLACK << 8) | *c;
+            pr_index++;
+            if (pr_index >= 80) {
+                str++;
+                pr_index = 0;
+            }
+        }
+        if (str >= 25) {
+            scroll();
+        }
+        c++;
+        char_index = pr_index;
+    }
+}
+
 void print_char(char c) {
     if (c == '\n') {
         str++;
         char_index = 0;
+        pr_index = 0;
         return;
     }
     if (c == '\b') {
@@ -51,28 +75,6 @@ void print_char(char c) {
     }
     vga[str * 80 + char_index] = (WHITE_ON_BLACK << 8) | c;
     char_index++;
-}
-
-void print(const char *c) {
-    while (*c != '\0') {
-        if (*c == '\n') {
-            str++;
-            char_index = 0;
-        } else {
-            vga[str * 80 + char_index] = (WHITE_ON_BLACK << 8) | *c;
-            char_index++;
-            if (char_index >= 80) {
-                str++;
-                char_index = 0;
-            }
-        }
-        if (str >= 25) {
-            scroll();
-        }
-        c++;
-    }
-    str++;
-    char_index = 0;
 }
 
 void clear() {
@@ -144,21 +146,16 @@ int strcmp(const char* a, const char* b) {
 
 void execute(const char *cmd) {
     if (strcmp(cmd, "help") == 0) {
-        print("Commands aviable: ");
-        print("help - shows all comands");
-        print("about - shows info about OS");
-        print("clear - clear the screen");
-        print("yandex - secret :) ");
+        print("Commands aviable: \n");
+        print("help - shows all comands\n");
+        print("about - shows info about OS\n");
+        print("clear - clear the screen\n");
     }
     if (strcmp(cmd, "about") == 0) {
-        print("OS - IPSOS, hello everyone! ");
+        print("OS - IPSOS, hello everyone! \n");
     }
     if (strcmp(cmd, "clear") == 0) {
         clear();
-    }
-    if (strcmp(cmd, "yandex") == 0) {
-        print("Hi Yandex! This OS is being developed as a pet project, and I would really love to intern with you!");
-        print("Thanks for all!");
     }
 }
 
@@ -185,13 +182,13 @@ void kernel_main() {
     keyboard_init();
 
     clear();
-    print("Hello from IPSOS! \n pidor!");
+    print("Hello from IPSOS! \n pidor! \n");
 
     outb(0x70, inb(0x70) | 0x80);
     __asm__ volatile ("sti");
 
     while(1) {
-        printn("IPSOS@user: ");
+        print("IPSOS@user: ");
         char* cmd = input();
         execute(cmd);
     }
