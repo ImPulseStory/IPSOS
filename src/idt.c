@@ -1,11 +1,10 @@
-#include "idt.h"
+#include "boot.h"
 
 struct idt_entry idt[256];
 struct idt_ptr idtp;
 
 extern void idt_load(uint32_t);
 extern void isr_stub();
-extern void keyboard_handler();
 extern void irq_stub();
 extern void isr6();
 extern void irq1_stub();
