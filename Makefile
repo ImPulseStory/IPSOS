@@ -1,4 +1,4 @@
-FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./build/pic.o ./build/keyboard.o
+FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./build/pic.o ./build/keyboard.o ./build/ata.o
 FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0 \
         -fno-stack-protector -mno-red-zone -mstackrealign
 
@@ -10,6 +10,7 @@ all:
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/idt.c -o ./build/idt_c.o
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/pic.c -o ./build/pic.o
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/keyboard.c -o ./build/keyboard.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/ata.c -o ./build/ata.o
 	i686-elf-ld -g -relocatable $(FILES) -o ./build/completeKernel.o
 	i686-elf-ld -T ./linkerScript.ld -o ./bin/kernel.elf ./build/completeKernel.o
 	i686-elf-objcopy -O binary ./bin/kernel.elf ./bin/kernel.bin
@@ -31,4 +32,11 @@ clean:
 	rm -f ./build/completeKernel.o
 
 run:
-	qemu-system-x86_64 -drive file=./bin/os.bin,format=raw
+	qemu-system-x86_64 \
+  -drive file=./bin/os.bin,format=raw,if=ide,index=0 \
+  -drive file=disk.img,format=raw,if=ide,index=1
+
+rungdb:
+	qemu-system-x86_64 \
+  -drive file=./bin/os.bin,format=raw,if=ide,index=0 \
+  -drive file=disk.img,format=raw,if=ide,index=1 -s -S

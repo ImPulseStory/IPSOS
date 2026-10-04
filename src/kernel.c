@@ -7,13 +7,17 @@
 extern void idt_init();
 extern void keyboard_init();
 extern char* input();
+extern int ata_init(void);
+extern void read_sector(unsigned int target_address, unsigned int LBA, unsigned char sector_count);
 
-volatile unsigned short *vga = (volatile unsigned short *) 0xB8000;
+volatile unsigned short *vga;
 
 int str = 0;
 int prev_index = 0;
 int char_index = 0;
 int pr_index = 0;
+
+uint8_t buf[512];
 
 static inline void outb(uint16_t port, uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
@@ -157,6 +161,48 @@ void execute(const char *cmd) {
     if (strcmp(cmd, "clear") == 0) {
         clear();
     }
+    if (strcmp(cmd, "run") == 0) {
+        int pc = 0;
+        char stack[100];
+        bool run = true;
+        uint8_t prev;
+        int cursor = 0;
+
+        while (run) {
+            uint8_t opcode = buf[pc++];
+
+            switch (opcode) {
+                case 0x01: {
+                    stack[cursor] = buf[pc++];
+                    cursor++;
+                    break;
+                }
+
+                case 0x30: { // PRINTC (print an char)
+                    char value = stack[cursor - 1];
+                    print_char(value);
+                    break;
+                }
+
+                case 0xFF: { // HLT (stop run programm)
+                    run = false;
+                    break;
+                }
+
+                case 0x00: {
+                    break;
+                }
+                
+                default: {
+                    print_hex(stack[cursor]);
+                    print("FATAL RPOGRAM ERROR \n");
+                    run = false;
+                    break;
+                }
+            }
+            prev = opcode;
+        }
+    }
 }
 
 void printn(const char *c) {
@@ -174,7 +220,14 @@ void printn(const char *c) {
     }
 }
 
+void print_hex(uint8_t value) {
+    char hex[] = "0123456789ABCDEF";
+    print_char(hex[(value >> 4) & 0x0F]);
+    print_char(hex[value & 0x0F]);
+}
+
 void kernel_main() {
+    vga = (volatile unsigned short *) 0xB8000;
     idt_init();
     pic_remap();
     pic_unmask(0);
@@ -182,10 +235,17 @@ void kernel_main() {
     keyboard_init();
 
     clear();
+    if (ata_init()) {
+        print("ATA SUCCESS \n");
+    } else {
+        print("ATA ERROR");
+    }
     print("Hello from IPSOS! \n pidor! \n");
 
     outb(0x70, inb(0x70) | 0x80);
     __asm__ volatile ("sti");
+
+    read_sector((unsigned int)buf, 100, 1);
 
     while(1) {
         print("IPSOS@user: ");

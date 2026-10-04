@@ -38,6 +38,7 @@ load_PM:
 disk_read_error:
     hlt
 
+
 gdt_start:
     dd 0x0
     dd 0x0
