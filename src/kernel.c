@@ -71,12 +71,24 @@ void kernel_main() {
     } else {
         print("ATA ERROR");
     }
+
+    sfs_init();
+
+    uint8_t data[] = "HELLO_FROM_SFS";
+    sfs_create("hello.txt", data, sizeof(data));
+    sfs_list();
+
+    uint8_t rbuf[512];
+    uint32_t rsize;
+    if (sfs_read("hello.txt", rbuf, &rsize) == 0) {
+        print((char*)rbuf);
+        print("\n");
+    }   
+
     print("Hello from IPSOS! \n pidor! \n");
 
     outb(0x70, inb(0x70) | 0x80);
     __asm__ volatile ("sti");
-
-    read_sector((unsigned int)buf, 100, 1);
 
     while(1) {
         print("IPSOS@user: ");

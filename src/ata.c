@@ -44,7 +44,7 @@ int ata_init(void) {
 void read_sector(unsigned int target_address, unsigned int LBA, unsigned char sector_count)
 {
 	ata_wait_bsy();
-	outb(0x1F6, 0xF0 | ((LBA >> 24) & 0xF));
+	outb(0x1F6, 0xE0 | ((LBA >> 24) & 0xF));
     for (int i = 0; i < 4; i++) inb(STATUS);
     outb(0x1F2, sector_count);
 	outb(0x1F3, (unsigned char) LBA);
@@ -64,9 +64,28 @@ void read_sector(unsigned int target_address, unsigned int LBA, unsigned char se
 	}
 }
 
+void ata_write_sector(unsigned int LBA, uint8_t* buffer, unsigned char sector_count) {
+    print_char('W');
+    ata_wait_bsy();
+    ata_wait_drq();
+    outb(0x1F6, 0xE0 | ((LBA >> 24) & 0x0F));
+    for (int i = 0; i < 4; i++) inb(STATUS);
+    outb(0x1F2, sector_count);
+    outb(0x1F3, (unsigned char) LBA);
+    outb(0x1F4, (unsigned char)(LBA >> 8));
+    outb(0x1F5, (unsigned char)(LBA >> 16));
+    outb(0x1F7, 0x30); // Send the write command
 
-void ata_write_sector(uint32_t lba, uint8_t* buffer) {
-
+    unsigned short *data_ptr = (unsigned short*)buffer;
+    for (int j = 0; j < sector_count; j++) {
+        ata_wait_bsy();
+        for (int i = 0; i < 256; i++) {
+            outw(0x1F0, data_ptr[i]);
+        }
+        data_ptr += 256;
+    }
+    ata_wait_bsy();
+    print_char('E');
 }
 
 void ata_identify(uint16_t* buffer) {

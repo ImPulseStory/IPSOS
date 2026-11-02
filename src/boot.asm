@@ -19,7 +19,7 @@ start:
     xor bx, bx
 
     mov ah, 0x02
-    mov al, 8
+    mov al, 64
     mov ch, 0
     mov cl, 2
     mov dh, 0

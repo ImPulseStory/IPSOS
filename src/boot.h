@@ -59,7 +59,7 @@ void kernel_main();
 
 int ata_init(void);
 void read_sector(unsigned int target_address, unsigned int LBA, unsigned char sector_count);
-void ata_write_sector(uint32_t lba, uint8_t* buffer);
+void ata_write_sector(unsigned int LBA, uint8_t* buffer, unsigned char target_sector);
 void ata_identify(uint16_t* buffer);
 
 // --------------- IDT --------------- //
@@ -98,5 +98,38 @@ char* input();
 
 void pic_remap();
 void pic_unmask(uint8_t irq);
+
+// --------------- SFS ---------------- //
+
+#define SFS_MAGIC     0x534653  // 'SFS'
+#define SFS_VERSION   1
+#define SFS_BLOCK     512
+#define SFS_MAX_FILES 8
+#define SFS_NAME_LEN  16
+
+#define SFS_SUPER_LBA 200
+#define SFS_DATA_LBA  201
+
+typedef struct {
+    char     name[SFS_NAME_LEN];
+    uint32_t start_lba;
+    uint32_t size;
+    uint8_t  used;
+} __attribute__((packed)) sfs_file_t;
+
+typedef struct {
+    uint32_t   magic;
+    uint32_t   version;
+    uint32_t   file_count;
+    uint32_t   next_free_lba;
+    sfs_file_t files[SFS_MAX_FILES];
+    uint8_t    padding[512 - 16 - (SFS_MAX_FILES * (SFS_NAME_LEN + 4 + 4 + 1))];
+} __attribute__((packed)) sfs_super_t;
+
+void sfs_init(void);
+int  sfs_create(const char* name, uint8_t* data, uint32_t size);
+int  sfs_read(const char* name, uint8_t* buf, uint32_t* size);
+void sfs_list(void);
+int  sfs_delete(const char* name);
 
 #endif
