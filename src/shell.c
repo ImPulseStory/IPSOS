@@ -127,6 +127,21 @@ int strcmp(const char* a, const char* b) {
     return *a - *b;
 }
 
+void parse_command(char* cmd, char** command, char** args) {
+    *command = cmd;
+    *args = 0;
+
+    int i = 0;
+    while (cmd[i] != '\0') {
+        if (cmd[i] == ' ') {
+            cmd[i] = '\0';
+            *args = &cmd[i + 1];
+            break;
+        }
+        i++;
+    }
+}
+
 void print_hex(uint8_t value) {
     char hex[] = "0123456789ABCDEF";
     print_char(hex[(value >> 4) & 0x0F]);

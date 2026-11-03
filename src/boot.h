@@ -12,6 +12,7 @@ void print(const char *c);
 void print_char(char c);
 void clear();
 void printf(const char* fmt, ...);
+void parse_command(char* cmd, char** command, char** args);
 int strcmp(const char* a, const char* b);
 
 // --------------- IO --------------- //

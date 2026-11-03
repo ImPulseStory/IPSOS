@@ -1,22 +1,28 @@
 #include "boot.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 uint8_t buf[512];
 
 void execute(const char *cmd) {
-    if (strcmp(cmd, "help") == 0) {
+    char* command;
+    char* args;
+
+    parse_command((char*)cmd, &command, &args);
+
+    if (strcmp(command, "help") == 0) {
         print("Commands aviable: \n");
         print("help - shows all comands\n");
         print("about - shows info about OS\n");
         print("clear - clear the screen\n");
     }
-    if (strcmp(cmd, "about") == 0) {
+    if (strcmp(command, "about") == 0) {
         print("OS - IPSOS, hello everyone! \n");
     }
-    if (strcmp(cmd, "clear") == 0) {
+    if (strcmp(command, "clear") == 0) {
         clear();
     }
-    if (strcmp(cmd, "run") == 0) {
+    if (strcmp(command, "run") == 0) {
         int pc = 0;
         char stack[100];
         bool run = true;
@@ -56,6 +62,73 @@ void execute(const char *cmd) {
             }
         }
     }
+    if (strcmp(command, "ls") == 0) {
+        sfs_list();
+    }
+    if (strcmp(command, "cat") == 0) {
+        if (args != 0) {
+            uint8_t buf[512];
+            uint32_t size;
+            if (sfs_read(args, buf, &size) == 0) {
+                buf[size] = '\0';
+                print((char*)buf);
+                print("\n");
+            }
+        } else {
+            print("Usage: cat <filename>\n");
+        }
+    }
+    if (strcmp(command, "write") == 0) {
+        if (args == 0) {
+            print("Usage: write <file> <text>\n");
+            return;
+        }
+
+        char* filename = args;
+        char* text = 0;
+
+        int i = 0;
+        while (args[i] != '\0') {
+            if (args[i] == ' ') {
+                args[i] = '\0';
+
+                text = &args[i + 1];
+                break;
+            }
+            i++;
+        }
+
+        if (filename != 0 && text != 0) {
+            uint32_t len = 0;
+            while (text[len] != '\0') {
+                len++;
+            }
+
+            if (sfs_create(filename, (uint8_t*)text, len) == 0) {
+                print("Succes writen to ");
+                print(filename);
+                print("\n");
+            } else {
+                print("Error: Could not write file\n");
+            }
+        } else {
+            print("Usage: write <file> <text>\n");
+        }
+    }
+    if (strcmp(command, "rm") == 0) {
+        if (args == 0) {
+            print("Usage: del <file>\n");
+            return;
+        }
+
+        if (sfs_delete(args) == 0) {
+            print("Succes delete file");
+            print(args);
+            print("\n");
+        } else {
+            print("Unable to delete file\n");
+        }
+    }
 }
 
 void kernel_main() {
@@ -66,26 +139,10 @@ void kernel_main() {
     keyboard_init();
 
     clear();
-    if (ata_init()) {
-        print("ATA SUCCESS \n");
-    } else {
-        print("ATA ERROR");
-    }
+    ata_init();
 
     sfs_init();
-
-    uint8_t data[] = "HELLO_FROM_SFS";
-    sfs_create("hello.txt", data, sizeof(data));
-    sfs_list();
-
-    uint8_t rbuf[512];
-    uint32_t rsize;
-    if (sfs_read("hello.txt", rbuf, &rsize) == 0) {
-        print((char*)rbuf);
-        print("\n");
-    }   
-
-    print("Hello from IPSOS! \n pidor! \n");
+    print("Hello from IPSOS! \n");
 
     outb(0x70, inb(0x70) | 0x80);
     __asm__ volatile ("sti");
