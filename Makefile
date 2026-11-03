@@ -1,4 +1,4 @@
-FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./build/pic.o ./build/keyboard.o ./build/ata.o ./build/shell.o ./build/sfs.o ./build/libc.o
+FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./build/pic.o ./build/keyboard.o ./build/ata.o ./build/shell.o ./build/sfs.o ./build/libc.o ./build/edit.o
 FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0 \
         -fno-stack-protector -mno-red-zone -mstackrealign
 
@@ -13,7 +13,8 @@ all:
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/drivers/ata.c -o ./build/ata.o
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/kernel/shell.c -o ./build/shell.o
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/fs/sfs.c -o ./build/sfs.o
-	i686-elf-gcc -I/.src $(FLAGS) -std=gnu99 -c ./src/libs/libc.c -o ./build/libc.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/libs/libc.c -o ./build/libc.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/apps/edit/edit.c -o ./build/edit.o
 	i686-elf-ld -g -relocatable $(FILES) -o ./build/completeKernel.o
 	i686-elf-ld -T ./linkerScript.ld -o ./bin/kernel.elf ./build/completeKernel.o
 	i686-elf-objcopy -O binary ./bin/kernel.elf ./bin/kernel.bin

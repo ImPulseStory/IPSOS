@@ -21,14 +21,12 @@ int ata_init(void) {
 
     uint8_t status = inb(STATUS);
     if (status == 0) {
-        print_char('a');
         return 0;
     }
 
     ata_wait_bsy();
 
     if (inb(LBA_MID) != 0 || inb(LBA_HIGH) != 0) {
-        print_char('w');
         return 0;
     }
 
@@ -67,7 +65,6 @@ void read_sector(unsigned int target_address, unsigned int LBA, unsigned char se
 }
 
 void ata_write_sector(unsigned int LBA, uint8_t* buffer, unsigned char sector_count) {
-    print_char('W');
     ata_wait_bsy();
     ata_wait_drq();
     outb(0x1F6, 0xE0 | ((LBA >> 24) & 0x0F));
@@ -87,7 +84,6 @@ void ata_write_sector(unsigned int LBA, uint8_t* buffer, unsigned char sector_co
         data_ptr += 256;
     }
     ata_wait_bsy();
-    print_char('E');
 }
 
 void ata_identify(uint16_t* buffer) {

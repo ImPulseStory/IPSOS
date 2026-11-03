@@ -1,9 +1,8 @@
 #include "../include/sfs.h"
 #include "../include/ata.h"
+#include "../include/vga.h"
 #include <stdint.h>
 
-extern void print(const char*);
-extern void print_char(char);
 
 static int sfs_strcmp(const char* a, const char* b) {
     while (*a && *b) {
@@ -55,10 +54,11 @@ int sfs_create(const char* name, uint8_t* data, uint32_t size) {
 
     for (int i = 0; i < SFS_MAX_FILES; i++) {
         if (super.files[i].used && sfs_strcmp(super.files[i].name, name) == 0) {
-            return -2;
+            super.files[i].used = 0;
+            super.file_count--;
+            break;
         }
     }
-
     int slot = -1;
     for (int i = 0; i < SFS_MAX_FILES; i++) {
         if (!super.files[i].used) { slot = i; break; }
@@ -87,6 +87,7 @@ int sfs_create(const char* name, uint8_t* data, uint32_t size) {
     super.next_free_lba = lba + sectors;
     super.file_count++;
     sfs_save_super(&super);
+
     return 0;
 }
 

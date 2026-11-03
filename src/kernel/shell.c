@@ -1,6 +1,7 @@
 #include "../include/vga.h"
 #include "../include/libc.h"
 #include "../include/sfs.h"
+#include "../apps/edit/edit.h"
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -136,6 +137,26 @@ void execute(const char *cmd) {
             print("\n");
         } else {
             print("Unable to delete file\n");
+        }
+    }
+    if (strcmp(command, "edit") == 0) {
+        if (args == 0) {
+            print("Usage: edit <file>\n");
+            return;
+        }
+
+        run(args);
+    }
+    if (strcmp(command, "touch") == 0) {
+        if (args == 0) {
+            print("Usage: touch <filename>\n");
+            return;
+        }
+
+        if (sfs_create(args, 0, 0) == 0) {
+            print("Success\n");
+        } else {
+            print("Error: Unable to create file\n");
         }
     }
 }
