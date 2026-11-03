@@ -22,7 +22,7 @@ static void sfs_strcpy(char* dst, const char* src) {
 }
 
 static void sfs_load_super(sfs_super_t* out) {
-    read_sector(SFS_SUPER_LBA, (uint8_t*)out, 1);
+    read_sector((unsigned int)out, SFS_SUPER_LBA, 1);
 }
 
 static void sfs_save_super(sfs_super_t* super) {
@@ -97,7 +97,7 @@ int sfs_read(const char* name, uint8_t* buf, uint32_t* size) {
         if (super.files[i].used && sfs_strcmp(super.files[i].name, name) == 0) {
             uint32_t sectors = (super.files[i].size + SFS_BLOCK - 1) / SFS_BLOCK;
             for (uint32_t s = 0; s < sectors; s++) {
-                read_sector(super.files[i].start_lba + s, buf + s * SFS_BLOCK, 1);
+                read_sector((unsigned int)buf + s * SFS_BLOCK, super.files[i].start_lba, 1);
             }
             *size = super.files[i].size;
             return 0;
@@ -138,4 +138,10 @@ int sfs_delete(const char* name) {
         }
     }
     return -1;
+}
+
+int sfs_create_text(const char* name, const char* text) {
+    uint32_t size = 0;
+    while (text[size] != '\0') size++;
+    return sfs_create(name, (uint8_t*)text, size);
 }
