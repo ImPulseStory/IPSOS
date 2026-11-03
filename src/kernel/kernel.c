@@ -1,5 +1,4 @@
 #include "../include/kernel.h"
-#include "../include/libc.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -10,18 +9,17 @@ void kernel_main() {
     pic_unmask(1);
     keyboard_init();
 
-    clear();
-    ata_init();
+    vbe_init();
 
-    sfs_init();
-    print("Hello from IPSOS! \n");
+    clear_screen(0x0000FF);
+    draw_char(100, 100, 'h', 0x000000);
+    draw_char(110, 100, 'e', 0x000000);
+    draw_char(120, 100, 'l', 0x000000);
+    draw_char(130, 100, 'l', 0x000000);
+    draw_char(140, 100, 'o', 0x000000);
+   //flush_screen();
 
-    outb(0x70, inb(0x70) | 0x80);
-    __asm__ volatile ("sti");
-
-    while(1) {
-        print("IPSOS@user: ");
-        char* cmd = input();
-        execute(cmd);
+    while (1) {
+        __asm__ volatile ("hlt");
     }
 }

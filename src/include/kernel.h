@@ -9,6 +9,8 @@
 #include "keyboard.h"
 #include "pic.h"
 #include "sfs.h"
+#include "vbe.h"
+#include "heap.h"
 
 void execute(const char *cmd);
 void kernel_main();

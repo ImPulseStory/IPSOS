@@ -6,6 +6,9 @@ DATA_OFFSET equ 0x10
 
 KERNEL_LOAD_SEG equ 0x1000
 
+VBE_INFO_ADDR   equ 0x8000
+MODE_INFO_ADDR  equ 0x8200
+
 start:
     cli
     xor ax, ax
@@ -13,6 +16,8 @@ start:
     mov es, ax
     mov ss, ax
     mov sp, 0x7c00
+
+    call set_video_mode
     
     mov ax, KERNEL_LOAD_SEG
     mov es, ax
@@ -38,7 +43,74 @@ load_PM:
 disk_read_error:
     hlt
 
+set_video_mode:
+    mov ax, 0x4F00
+    mov di, 0x8000         
+    int 0x10
+    cmp ax, 0x004F
+    jne .vbe_error
 
+    mov si, [0x8000 + 0x0E]
+    mov ax, [0x8000 + 0x10] 
+    mov ds, ax
+    mov si, [0x8000 + 0x0E] 
+
+.find_mode_loop:
+    mov cx, [ds:si]         
+    cmp cx, 0xFFFF          
+    je .vbe_error
+
+    push si              
+    mov ax, 0x4F01
+    mov di, 0x8200          
+    int 0x10
+    pop si
+    
+    cmp ax, 0x004F
+    jne .next_mode
+
+    mov ax, [0x8200 + 0x12] 
+    cmp ax, 1024
+    jne .next_mode
+
+    mov ax, [0x8200 + 0x14]
+    cmp ax, 768
+    jne .next_mode
+
+    mov al, [0x8200 + 0x19]
+    cmp al, 32
+    jne .next_mode
+
+    mov [0x900A], cx       
+
+    mov ax, 0x4F02
+    mov bx, cx
+    or bx, 0x4000           
+    int 0x10
+    cmp ax, 0x004F
+    jne .vbe_error
+
+    mov eax, [0x8200 + 0x28]
+    mov [0x9000], eax       
+
+    mov ax, [0x8200 + 0x10] 
+    mov [0x9004], ax
+
+    mov ax, [0x8200 + 0x12] 
+    mov [0x9006], ax
+
+    mov ax, [0x8200 + 0x14] 
+    mov [0x9008], ax
+
+    ret
+
+.next_mode:
+    add si, 2           
+    jmp .find_mode_loop
+
+.vbe_error:
+    mov dword [0x9000], 0xDEADBEEF
+    ret
 gdt_start:
     dd 0x0
     dd 0x0
