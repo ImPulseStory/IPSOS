@@ -1,6 +1,7 @@
 #include "../include/keyboard.h"
 #include "../include/io.h"
 #include "../include/vga.h"
+#include "../apps/terminal/terminal.h"
 #include <stdint.h>
 
 static const char scancode_to_ascii[128] = {
@@ -13,7 +14,6 @@ static const char scancode_to_ascii[128] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 
-// Очередь событий (Raw Mode)
 static int key_queue[256];
 static int q_head = 0;
 static int q_tail = 0;
@@ -76,20 +76,20 @@ char* input() {
 
         if (key == '\n') {
             buffer[index] = '\0';
-            print_char('\n');
+            term_print_char('\n');
             return buffer;
         } 
         else if (key == '\b') {
             if (index > 0) {
                 index--;
-                print_char('\b');
+                term_print_char('\b');
             }
         } 
         else if (key >= 32 && key <= 126) {
             if (index < 255) {
                 buffer[index] = (char)key;
                 index++;
-                print_char((char)key);
+                term_print_char((char)key);
             }
         }
     }

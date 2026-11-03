@@ -15,6 +15,10 @@ void vbe_init() {
     pitch       = *(uint16_t*)0x9004;
     screen_width   = *(uint16_t*)0x9006;
     screen_height  = *(uint16_t*)0x9008;
+
+    if (screen_width == 0) screen_width = 1024;
+    if (screen_height == 0) screen_height = 768;
+    if (pitch == 0) pitch = 1024 * 4;
 }
 
 void put_pixel(int x, int y, uint32_t color) {
@@ -62,13 +66,17 @@ void flush_screen() {
 }
 
 void print_char_gr(char c) {
-    if (c == 'n') {
+    if (c == '\n') {
         console_x = 0;
         console_y += 16;
         if (console_y >= screen_height) {
             console_y = screen_height - 16;
         }
         return;
+    }
+    if (c == '\b') {
+        draw_rect(console_x, console_y, 8, 16, 0x0000FF);
+        console_x -= 8;
     }
 
     draw_char(console_x, console_y, c, 0xFFFFFF);
@@ -77,11 +85,6 @@ void print_char_gr(char c) {
     if (console_x >= screen_width) {
         console_x = 0;
         console_y += 16;
-    }
-
-    if (c == '\b') {
-        draw_rect(console_x, console_y, 8, 16, 0x0000FF);
-        console_x -= 8;
     }
 }
 

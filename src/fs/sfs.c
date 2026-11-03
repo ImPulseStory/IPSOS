@@ -1,6 +1,7 @@
 #include "../include/sfs.h"
 #include "../include/ata.h"
 #include "../include/vga.h"
+#include "../apps/terminal/terminal.h"
 #include <stdint.h>
 
 
@@ -113,17 +114,17 @@ void sfs_list(void) {
     sfs_load_super(&super);
 
     if (super.file_count == 0) {
-        print("(empty)\n");
+        term_print("(empty)\n");
         return;
     }
 
     for (int i = 0; i < SFS_MAX_FILES; i++) {
         if (super.files[i].used) {
-            print(super.files[i].name);
-            print("  ");
+            term_print(super.files[i].name);
+            term_print("  ");
         }
     }
-    print("\n");
+    term_print("\n");
 }
 
 int sfs_delete(const char* name) {

@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 void run(const char* file) {
-    clear();
+    term_clear();
 
     char safe_filename[32];
     int i = 0;
@@ -29,6 +29,7 @@ void run(const char* file) {
         if (key == KEY_ESC) {
             sfs_create(safe_filename, (uint8_t*)buf, len);
             running = 0;
+            term_clear();
             break;
         }
 
@@ -69,7 +70,7 @@ void run(const char* file) {
         }
 
         if (key >= 32 && key <= 126 && cursor == len) {
-            print_char((char)key);
+            term_print_char((char)key);
         }
     }
 }

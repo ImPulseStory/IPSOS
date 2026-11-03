@@ -12,6 +12,8 @@
 #include "vbe.h"
 #include "heap.h"
 
+#include "../apps/terminal/terminal.h"
+
 void execute(const char *cmd);
 void kernel_main();
 
