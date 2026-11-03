@@ -1,4 +1,6 @@
-#include "boot.h"
+#include "../include/ata.h"
+#include "../include/io.h"
+#include "../include/vga.h"
 #include <stdint.h>
 
 static void ata_wait_bsy(void) {

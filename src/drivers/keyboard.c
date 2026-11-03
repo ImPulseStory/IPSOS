@@ -1,4 +1,7 @@
-#include "boot.h"
+#include "../include/keyboard.h"
+#include "../include/io.h"
+#include "../include/vga.h"
+#include <stdint.h>
 
 static const char scancode_to_ascii[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',

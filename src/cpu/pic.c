@@ -1,4 +1,5 @@
-#include "boot.h"
+#include "../include/pic.h"
+#include "../include/io.h"
 #include <stdint.h>
 
 

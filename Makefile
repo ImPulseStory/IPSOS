@@ -1,18 +1,19 @@
-FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./build/pic.o ./build/keyboard.o ./build/ata.o ./build/shell.o ./build/sfs.o
+FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./build/pic.o ./build/keyboard.o ./build/ata.o ./build/shell.o ./build/sfs.o ./build/libc.o
 FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0 \
         -fno-stack-protector -mno-red-zone -mstackrealign
 
 all:
-	nasm -f bin ./src/boot.asm -o ./bin/boot.bin
-	nasm -f elf32 -g ./src/kernel.asm -o ./build/kernel.asm.o
-	nasm -f elf32 -g ./src/idt.asm -o ./build/idt.o
-	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/kernel.c -o ./build/kernel.o
-	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/idt.c -o ./build/idt_c.o
-	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/pic.c -o ./build/pic.o
-	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/keyboard.c -o ./build/keyboard.o
-	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/ata.c -o ./build/ata.o
-	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/shell.c -o ./build/shell.o
-	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/sfs.c -o ./build/sfs.o
+	nasm -f bin ./src/boot/boot.asm -o ./bin/boot.bin
+	nasm -f elf32 -g ./src/kernel/kernel.asm -o ./build/kernel.asm.o
+	nasm -f elf32 -g ./src/cpu/idt.asm -o ./build/idt.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/kernel/kernel.c -o ./build/kernel.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/cpu/idt.c -o ./build/idt_c.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/cpu/pic.c -o ./build/pic.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/drivers/keyboard.c -o ./build/keyboard.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/drivers/ata.c -o ./build/ata.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/kernel/shell.c -o ./build/shell.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/fs/sfs.c -o ./build/sfs.o
+	i686-elf-gcc -I/.src $(FLAGS) -std=gnu99 -c ./src/libs/libc.c -o ./build/libc.o
 	i686-elf-ld -g -relocatable $(FILES) -o ./build/completeKernel.o
 	i686-elf-ld -T ./linkerScript.ld -o ./bin/kernel.elf ./build/completeKernel.o
 	i686-elf-objcopy -O binary ./bin/kernel.elf ./bin/kernel.bin

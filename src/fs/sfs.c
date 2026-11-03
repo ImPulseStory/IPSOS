@@ -1,4 +1,5 @@
-#include "boot.h"
+#include "../include/sfs.h"
+#include "../include/ata.h"
 #include <stdint.h>
 
 extern void print(const char*);
