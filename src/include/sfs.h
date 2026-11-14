@@ -31,7 +31,9 @@ typedef struct {
 void sfs_init(void);
 int  sfs_create(const char* name, uint8_t* data, uint32_t size);
 int  sfs_read(const char* name, uint8_t* buf, uint32_t* size);
-void sfs_list(void);
+int sfs_list(char* buf);
 int  sfs_delete(const char* name);
+int  sfs_get_size(const char* name, uint32_t* out_size);
+int  sfs_create_text(const char* name, const char* text);
 
 #endif

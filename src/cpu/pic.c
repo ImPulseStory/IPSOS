@@ -25,13 +25,17 @@ void pic_remap() {
 
 void pic_unmask(uint8_t irq) {
     uint16_t port;
-    uint8_t  value;
+    uint8_t value;
 
     if (irq < 8) {
-        port = PIC1_DATA;
+        port = PIC1_DATA; // 0x21
     } else {
-        port = PIC2_DATA;
+        port = PIC2_DATA; // 0xA1
         irq -= 8;
+        
+        uint8_t master = inb(PIC1_DATA);
+        master = master & ~(1 << 2); 
+        outb(PIC1_DATA, master);
     }
 
     value = inb(port) & ~(1 << irq);

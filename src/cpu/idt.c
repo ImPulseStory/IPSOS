@@ -1,4 +1,5 @@
 #include "../include/idt.h"
+#include <stdint.h>
 
 struct idt_entry idt[256];
 struct idt_ptr idtp;
@@ -7,7 +8,9 @@ extern void idt_load(uint32_t);
 extern void isr_stub();
 extern void irq_stub();
 extern void isr6();
+extern void irq12_stub();
 extern void irq1_stub();
+extern void mouse_handler();
 
 void idt_set_gate(int n, uint32_t handler) {
     idt[n].base_low  = handler & 0xFFFF;
@@ -30,6 +33,7 @@ void idt_init() {
 
     idt_set_gate(0x21, (uint32_t)irq1_stub);
     idt_set_gate(6, (uint32_t)isr6);
+    idt_set_gate(44, (uint32_t)irq12_stub);
 
     idt_load((uint32_t)&idtp);
 }

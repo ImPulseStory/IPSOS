@@ -24,6 +24,8 @@ void keyboard_init() {
 }
 
 void keyboard_handler() {
+    uint8_t status = inb(0x64);
+    if (!(status & 0x01) || (status & 0x20)) return;
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
 
     if (scancode & 0x80) return;

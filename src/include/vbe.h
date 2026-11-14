@@ -13,5 +13,6 @@ void flush_screen();
 void draw_char(int x, int y, char c, uint32_t color);
 void print_char_gr(char c);
 void print_gr(const char* c);
+uint32_t get_pixel(int x, int y);
 
 #endif

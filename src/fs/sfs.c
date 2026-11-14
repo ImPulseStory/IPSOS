@@ -1,7 +1,5 @@
 #include "../include/sfs.h"
 #include "../include/ata.h"
-#include "../include/vga.h"
-#include "../apps/terminal/terminal.h"
 #include <stdint.h>
 
 
@@ -28,6 +26,21 @@ static void sfs_load_super(sfs_super_t* out) {
 
 static void sfs_save_super(sfs_super_t* super) {
     ata_write_sector(SFS_SUPER_LBA, (uint8_t*)super, 1);
+}
+
+int sfs_get_size(const char* name, uint32_t* out_size) {
+    sfs_super_t super;
+    sfs_load_super(&super);
+
+    for (int i = 0; i < SFS_MAX_FILES; i++) {
+        if (super.files[i].used && sfs_strcmp(super.files[i].name, name) == 0) {
+            if (out_size) {
+                *out_size = super.files[i].size;
+            }
+            return 0; 
+        }
+    }
+    return -1; 
 }
 
 void sfs_init(void) {
@@ -109,22 +122,37 @@ int sfs_read(const char* name, uint8_t* buf, uint32_t* size) {
     return -1;
 }
 
-void sfs_list(void) {
+int sfs_list(char* buf) {
     sfs_super_t super;
     sfs_load_super(&super);
 
     if (super.file_count == 0) {
-        term_print("(empty)\n");
-        return;
+        return -1;
     }
 
-    for (int i = 0; i < SFS_MAX_FILES; i++) {
-        if (super.files[i].used) {
-            term_print(super.files[i].name);
-            term_print("  ");
+    int buf_pos = 0;
+    
+    for (int file_idx = 0; file_idx < SFS_MAX_FILES; file_idx++) {
+        if (!super.files[file_idx].used) continue; 
+        
+        int char_idx = 0;
+        while (super.files[file_idx].name[char_idx] != '\0') {
+            buf[buf_pos] = super.files[file_idx].name[char_idx];
+            buf_pos++;
+            char_idx++;
         }
+        
+        buf[buf_pos] = ' ';
+        buf_pos++;
     }
-    term_print("\n");
+    
+    if (buf_pos > 0) {
+        buf[buf_pos - 1] = '\0';
+    } else {
+        buf[0] = '\0';
+    }
+    
+    return 0;
 }
 
 int sfs_delete(const char* name) {

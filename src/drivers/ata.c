@@ -32,7 +32,7 @@ int ata_init(void) {
 
     while (1) {
         status = inb(STATUS);
-        if (status & 0x01) { print_char('e'); return 0; }
+        if (status & 0x01) { return 0; }
         if (status & 0x08) break;
     }
 

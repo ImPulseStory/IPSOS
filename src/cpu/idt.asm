@@ -5,7 +5,9 @@ global isr_stub
 global irq_stub
 global isr6
 global irq1_stub
+global irq12_stub
 
+extern mouse_handler
 extern keyboard_handler
 
 irq1_stub:
@@ -33,4 +35,17 @@ isr6:
     hlt
 
 isr_stub:
+    iret
+
+irq12_stub:
+    pushad
+    call mouse_handler
+
+    mov al, 0x20
+    out 0xA0, al
+
+    mov al, 0x20
+    out 0x20, al
+
+    popad
     iret

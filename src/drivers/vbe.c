@@ -94,3 +94,7 @@ void print_gr(const char* c) {
         c++;
     }
 }
+
+uint32_t get_pixel(int x, int y) {
+    return framebuffer[y * 1024 + x];
+}
