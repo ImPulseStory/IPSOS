@@ -27,7 +27,7 @@ void run(const char* file) {
         if (key == 0) continue;
 
         if (key == KEY_ESC) {
-            sfs_create(safe_filename, (uint8_t*)buf, len);
+            write_to_file(safe_filename, (char*)buf);
             running = 0;
             term_clear();
             break;
@@ -50,6 +50,7 @@ void run(const char* file) {
                 cursor--;
                 len--;
                 buf[len] = 0;
+                term_print_char('\b');
             }
         }
 
@@ -60,6 +61,7 @@ void run(const char* file) {
             buf[cursor] = '\n';
             cursor++;
             len++;
+            term_print_char('\n');
         }
 
         else if (key == KEY_LEFT) {

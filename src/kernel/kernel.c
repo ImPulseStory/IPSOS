@@ -20,7 +20,5 @@ void kernel_main() {
 
     __asm__ volatile ("sti"); 
 
-    while(1) {
-        term_run();
-    }
+    term_run();
 }

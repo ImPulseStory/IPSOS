@@ -8,7 +8,6 @@
 #include "idt.h"
 #include "keyboard.h"
 #include "pic.h"
-#include "sfs.h"
 #include "vbe.h"
 #include "heap.h"
 #include "../apps/IPDesktop/desktop.h"

@@ -26,7 +26,12 @@ int mouse_moved();
 // # ------------ FILES ----------- # //
 int create_file(const char* name);
 int deleteEx(const char* name);
-int read_file(const char* name, char* buf);
+int read_file(
+    const char *name,
+    char *buf,
+    uint32_t capacity,
+    uint32_t *out_size
+);
 int write_to_file(const char* name, const char* data);
 int list(char* buf, const char* path);
 int mkdir(const char* path);

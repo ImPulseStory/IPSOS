@@ -9,9 +9,18 @@ int deleteEx(const char *name) {
     return ips_delete(name);
 }
 
-int read_file(const char *name, char* buf) {
-    uint32_t out_size = 0;
-    return ips_read_file(name, (uint8_t*)buf, 8192, &out_size);
+int read_file(
+    const char *name,
+    char *buf,
+    uint32_t capacity,
+    uint32_t *out_size
+) {
+    return ips_read_file(
+        name,
+        (uint8_t*)buf,
+        capacity,
+        out_size
+    );
 }
 
 int write_to_file(const char *name, const char* data) {

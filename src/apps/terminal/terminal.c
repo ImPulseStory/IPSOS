@@ -5,11 +5,12 @@ extern void run(const char* file);
 
 static char cmd_buf[256];
 static int cmd_len = 0;
+static char cwd[256] = "/";
 
 int win_x = 0;
 int win_y = 0;
-int win_w = 1020;
-int win_h = 760;
+int win_w = 1024;
+int win_h = 768;
 
 int term_x = 0;
 int term_y = 0;
@@ -17,6 +18,19 @@ int term_y = 0;
 int old_mouse_x = -1;
 int old_mouse_y = -1;
 uint32_t saved_bg[8 * 8];
+
+void build_path(char* out, const char* arg) {
+    if (arg[0] == '/') {
+        my_strcpy(out, arg);
+    } 
+    else {
+        my_strcpy(out, cwd);
+        if (out[1] != '\0') { 
+            strcat(out, "/");
+        }
+        strcat(out, arg);
+    }
+}
 
 void term_clear() {
     gfx_draw_rect(win_x+1, win_y+1, win_w-2, win_h-2, 0x101010);
@@ -26,8 +40,9 @@ void term_clear() {
 
 void term_print_char(char c) {
     if (c == '\b') {
-        gfx_draw_rect(win_x + term_x, win_y + term_y, 8, 16, 0x101010);
+        gfx_draw_rect(win_x + term_x - 8, win_y + term_y, 8, 16, 0x101010);
         term_x -= 8;
+        return;
     }
     if (c == '\n') {
         term_x = 0;
@@ -69,6 +84,34 @@ void term_parse_command(char* cmd, char** command, char** args) {
     }
 }
 
+void shell_cd(const char* arg) {
+    char new_path[256];
+
+    if (arg[0] == '/') {
+        my_strcpy(new_path, arg);
+    } else {
+        if (cwd[1] == '\0') {
+            my_strcpy(new_path, "/");
+            strcat(new_path, arg);
+        } else {
+            my_strcpy(new_path, cwd);
+            strcat(new_path, "/");
+            strcat(new_path, arg);
+        }
+    }
+
+    if (strcmp(arg, "..") == 0) {
+        if (cwd[1] == '\0') return;
+        int i = my_strlen(cwd) -1;
+        while (i > 0 && cwd[i] != '/') i--;
+        if (i == 0) cwd[1] = '\0';
+        else cwd[i] = '\0';
+        return;
+    }
+
+    my_strcpy(cwd, new_path);
+}
+
 void term_execute(const char *cmd) {
     uint8_t buf[512];
     char* command;
@@ -81,11 +124,30 @@ void term_execute(const char *cmd) {
        term_print("help - shows all comands\n");
        term_print("about - shows info about OS\n");
        term_print("clear - clear the screen\n");
+       term_print("cd <path> - change working directory\n");
+       term_print("ls [path] - show directory");
+       term_print("cat <file> - show file");
+       term_print("touch <file> - create empty file");
+       term_print("run - BETA (interpreteter)");
+       term_print("write <file> <contain> - write contain to file");
+       term_print("pwd - show absolute working path");
+       term_print("echo - echo, just echo");
+    }
+    if (strcmp(command, "pwd") == 0) {
+        term_print(cwd);
+        term_print("\n");
+    }
+    if (strcmp(command, "echo") == 0) {
+        term_print(args);
+        term_print("\n");
     }
     if (strcmp(command, "about") == 0) {
        term_print("OS - IPSOS, hello everyone! \n");
     }
     if (strcmp(command, "clear") == 0) {
+        term_clear();
+    } 
+    if (strcmp(command, "cls") == 0) {
         term_clear();
     }
     if (strcmp(command, "run") == 0) {
@@ -128,30 +190,31 @@ void term_execute(const char *cmd) {
         }
     }
     if (strcmp(command, "ls") == 0) {
-        char* buf = 0;
-        if (list(buf, args) == -1) {
-            term_print("empty \n");
+        char buf[8192] = {0};
+        if (args == 0) {
+            if (list(buf, cwd) == -1) { term_print(""); } 
+            else { term_print(buf); }
         } else {
-            term_print(buf);
-            term_print_char('\n');
+            if (list(buf, args) == -1) { term_print(""); } 
+            else { term_print(buf); }
         }
-
-
     }
     if (strcmp(command, "cat") == 0) {
-        if (args != 0) {
-            uint8_t buf[512];
-            uint32_t size = 0;
-            if (read_file(args, (char*)buf) == 0) {
-                buf[size] = '\0';
-                term_print((char*)buf);
-                term_print("\n");
-            } else {
-                term_print("ERROR");
-            }
+        char buf[8192];
+        uint32_t size = 0;
+        char target_path[256];
+
+        build_path(target_path, args);
+        if (read_file(target_path, buf, sizeof(buf) - 1, &size) == 0) {
+            buf[size] = '\0';
+            term_print(buf);
+            term_print("\n");
         } else {
-           term_print("Usage: cat <filename>\n");
+            term_print("ERROR\n");
         }
+    }
+    if (strcmp(command, "cd") == 0) {
+        shell_cd(args);
     }
     if (strcmp(command, "write") == 0) {
         if (args == 0) {
@@ -179,12 +242,14 @@ void term_execute(const char *cmd) {
                 len++;
             }
 
-            if (write_to_file(filename, (char*)text) == 0) {
-               term_print("Succes writen to ");
-               term_print(filename);
-               term_print("\n");
+            char target_path[256];
+
+            build_path(target_path, args);
+            int result = write_to_file(target_path, text);
+
+            if (result >= 0) {
             } else {
-               term_print("Error: Could not write file\n");
+                term_print("Error: Could not write file\n");
             }
         } else {
            term_print("Usage: write <file> <text>\n");
@@ -195,11 +260,11 @@ void term_execute(const char *cmd) {
            term_print("Usage: del <file>\n");
             return;
         }
+        
+        char target_path[256];
+        build_path(target_path, args);
 
-        if (deleteEx(args) == 0) {
-           term_print("Succes delete file");
-           term_print(args);
-           term_print("\n");
+        if (deleteEx(target_path) == 0) {
         } else {
            term_print("Unable to delete file\n");
         }
@@ -218,8 +283,10 @@ void term_execute(const char *cmd) {
             return;
         }
 
-        if (create_file(args) == 0) {
-           term_print("Success\n");
+        char target_path[256];
+
+        build_path(target_path, args);
+        if (create_file(target_path) == 0) {
         } else {
            term_print("Error: Unable to create file\n");
         }
@@ -229,7 +296,10 @@ void term_execute(const char *cmd) {
             term_print("Usage: mkdir <name>\n");
             return;
         }
-        if (mkdir(args) == 0) {
+        char target_path[256];
+
+        build_path(target_path, args);
+        if (mkdir(target_path) == 0) {
             term_print("Succes\n");
         }
     }
@@ -275,8 +345,13 @@ void update_cursor() {
 void term_run() {
     char cmd_buf[256];
     int cmd_len = 0;
-    
-    term_print("IPSOS@user: ");
+
+    char greeting[64];
+    greeting[0] = '\0';
+    my_strcpy(greeting, "IPSOS@");
+    strcat(greeting, cwd);
+    strcat(greeting, " $ ");
+    term_print(greeting);
     
     while(1) {
         int mouse_movedd = mouse_moved();
@@ -289,7 +364,11 @@ void term_run() {
                 term_execute(cmd_buf);   
                 
                 cmd_len = 0;             
-                term_print("IPSOS@user: "); 
+                char greeting[64];
+                my_strcpy(greeting, "IPSOS@");
+                strcat(greeting, cwd);
+                strcat(greeting, " $ ");
+                term_print(greeting);
             } 
             else if (key == '\b') {
                 if (cmd_len > 0) {
@@ -310,40 +389,5 @@ void term_run() {
             //update_cursor();
             mouse_movedd = 0;
         }
-    }
-}
-
-void term_update() {
-    term_print("IPSOS@user: ");
-    int mouse_movedd = mouse_moved();
-    int key = readKey(); 
-    if (key != 0) {
-        if (key == '\n') {
-            cmd_buf[cmd_len] = '\0'; 
-            term_print("\n");        
-            
-            term_execute(cmd_buf);   
-                
-            cmd_len = 0;             
-            term_print("IPSOS@user: "); 
-         } 
-        else if (key == '\b') {
-            if (cmd_len > 0) {
-                cmd_len--;
-                term_print_char('\b'); 
-            }
-        }
-        else if (key >= 32 && key <= 126) {
-            if (cmd_len < 255) {
-                cmd_buf[cmd_len] = (char)key;
-                cmd_len++;
-                term_print_char((char)key); 
-            }
-        }
-    }
-
-    if (mouse_movedd) {
-        //update_cursor();
-        mouse_movedd = 0;
     }
 }

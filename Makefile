@@ -2,7 +2,7 @@ FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./bu
 	./build/heap.o ./build/font_8x16.o ./build/terminal.o ./build/mouse.o ./build/desktop.o ./build/api_vbe.o ./build/kern_term.o ./build/api_keyboard.o ./build/api_mouse.o ./build/api_fs.o \
 	./build/wm.o ./build/ipsfs.o
 
-FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -O0 \
+FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -w -O0 \
         -fno-stack-protector -mno-red-zone -mstackrealign
 
 all:
