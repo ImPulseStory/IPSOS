@@ -18,19 +18,48 @@ start:
     mov sp, 0x7c00
 
     call set_video_mode
-    
+
+    xor ax, ax
+    mov ds, ax
     mov ax, KERNEL_LOAD_SEG
     mov es, ax
     xor bx, bx
+    mov byte [load_sector], 2
+    mov byte [load_head], 0
+    mov byte [load_cylinder], 0
+    mov word [load_remaining], 1024
 
+.load_kernel:
     mov ah, 0x02
-    mov al, 64
-    mov ch, 0
-    mov cl, 2
-    mov dh, 0
+    mov al, 1
+    mov ch, [load_cylinder]
+    mov cl, [load_sector]
+    mov dh, [load_head]
     mov dl, 0x80
+    push ds
+    push es
     int 0x13
+    pop es
+    pop ds
     jc disk_read_error
+
+    mov ax, es
+    add ax, 0x20
+    mov es, ax
+
+    inc byte [load_sector]
+    cmp byte [load_sector], 64
+    jne .load_count
+    mov byte [load_sector], 1
+    inc byte [load_head]
+    cmp byte [load_head], 16
+    jne .load_count
+    mov byte [load_head], 0
+    inc byte [load_cylinder]
+
+.load_count:
+    dec word [load_remaining]
+    jnz .load_kernel
 
 load_PM:
     cli
@@ -111,6 +140,11 @@ set_video_mode:
 .vbe_error:
     mov dword [0x9000], 0xDEADBEEF
     ret
+load_sector db 2
+load_head db 0
+load_cylinder db 0
+load_remaining dw 1024
+
 gdt_start:
     dd 0x0
     dd 0x0
@@ -145,7 +179,7 @@ PModeMain:
     mov fs, ax
     mov ss, ax
     mov gs, ax
-    mov esp, 0x90000
+    mov esp, 0x01000000
     and esp, 0xFFFFFFF0
 
     in al, 0x92

@@ -3,14 +3,13 @@
 
 #include <stdint.h>
 
-/* 10 MiB disk image: 20480 sectors. Reserve LBA 0..127 for boot/kernel. */
-#define IPSFS_START_LBA          128u
-#define IPSFS_TOTAL_BLOCKS       20352u
+#define IPSFS_START_LBA          2048u
+#define IPSFS_TOTAL_BLOCKS       18432u
 
 #define IPSFS_MAGIC              0x49505346u
 #define MAX_INODES               128u
 #define BLOCK_SIZE               512u
-#define DIRECT_BLOCKS            10u
+#define DIRECT_BLOCKS            126u
 
 #define IPSFS_SUPER_BLOCKS       6u
 #define IPSFS_INODE_START        IPSFS_SUPER_BLOCKS

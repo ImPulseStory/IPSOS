@@ -2,12 +2,10 @@
 #define KMALLOC_H
 
 #include <stdint.h>
+#include <stddef.h>
 
-extern uint8_t kernel_end;
-
-static uint8_t* heap_ptr = &kernel_end;
-
-void* kmalloc(uint32_t size);
-void kfree(void* ptr);
+void *kmalloc(uint32_t size);
+void kfree(void *ptr);
+void *krealloc(void *ptr, uint32_t size);
 
 #endif

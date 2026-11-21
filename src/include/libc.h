@@ -2,6 +2,10 @@
 #define LIBC_H
 
 #include <stddef.h>
+#include "string.h"
+#include "stdlib.h"
+#include "ctype.h"
+#include "errno.h"
 
 void* memcpy(void* dest, const void* src, size_t n);
 void* memset(void* s, int c, size_t n);

@@ -12,7 +12,7 @@ void print(const char *c);
 void print_char(char c);
 void print_int(int n);
 void clear();
-void printf(const char* fmt, ...);
+int printf(const char* fmt, ...);
 void parse_command(char* cmd, char** command, char** args);
 
 #endif

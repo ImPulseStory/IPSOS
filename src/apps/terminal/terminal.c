@@ -1,4 +1,5 @@
 #include "terminal.h"
+#include "../../tcc/tcc_port.h"
 #include <stdint.h>
 
 extern void run(const char* file);
@@ -184,10 +185,28 @@ void term_execute(const char *cmd) {
        term_print("run - BETA (interpreteter)");
        term_print("write <file> <contain> - write contain to file");
        term_print("pwd - show absolute working path");
-       term_print("echo - echo, just echo");
+       term_print("echo - echo, just echo\n");
+       term_print("tcc <file> - compile and run C\n");
     }
     if (strcmp(command, "ipscc") == 0) {
         cmd_ipscc(args);
+    }
+    if (strcmp(command, "tcc") == 0) {
+        char source_path[256];
+        int result;
+        if (!args || !*args) {
+            term_print("TCC: source path required\n");
+        } else {
+            build_path(source_path, args);
+            result = ips_tcc_run_file(source_path);
+            if (result < 0) {
+                term_print("TCC: failed\n");
+            } else {
+                term_print("TCC: returned ");
+                term_print_int(result);
+                term_print("\n");
+            }
+        }
     }
     if (strcmp(command, "irun") == 0) {
         char target_path[256];
