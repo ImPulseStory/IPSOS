@@ -1,6 +1,6 @@
 FILES = ./build/kernel.asm.o ./build/kernel.o ./build/idt.o ./build/idt_c.o ./build/pic.o ./build/keyboard.o ./build/ata.o ./build/sfs.o ./build/libc.o ./build/edit.o ./build/vbe.o \
 	./build/heap.o ./build/font_8x16.o ./build/terminal.o ./build/mouse.o ./build/desktop.o ./build/api_vbe.o ./build/kern_term.o ./build/api_keyboard.o ./build/api_mouse.o ./build/api_fs.o \
-	./build/wm.o ./build/ipsfs.o
+	./build/wm.o ./build/ipsfs.o ./build/ipscc.o
 
 FLAGS = -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs -Wall -w -O0 \
         -fno-stack-protector -mno-red-zone -mstackrealign
@@ -30,6 +30,7 @@ all:
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/api/api_fs.c -o ./build/api_fs.o
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/apps/IPDesktop/wm.c -o ./build/wm.o
 	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/fs/ipsfs.c -o ./build/ipsfs.o
+	i686-elf-gcc -I./src $(FLAGS) -std=gnu99 -c ./src/ipscc/ipscc.c -o ./build/ipscc.o
 	i686-elf-ld -g -relocatable $(FILES) -o ./build/completeKernel.o
 	i686-elf-ld -T ./linkerScript.ld -o ./bin/kernel.elf ./build/completeKernel.o
 	i686-elf-objcopy -O binary ./bin/kernel.elf ./bin/kernel.bin

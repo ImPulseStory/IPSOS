@@ -13,4 +13,9 @@ void term_clear();
 void term_run();
 void term_update();
 
+void build_path(char* out, const char* arg);
+void term_execute(const char *cmd);
+void cmd_ipscc(const char *args);
+void term_print_int(int n);
+
 #endif

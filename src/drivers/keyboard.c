@@ -1,14 +1,23 @@
 #include "../include/keyboard.h"
 #include "../include/io.h"
-#include "../include/vga.h"
 #include "../apps/terminal/terminal.h"
 #include <stdint.h>
 
-static const char scancode_to_ascii[128] = {
+static const char scancode_lower[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b', '\t',
     'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n', 0, 'a', 's',
     'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0, '\\', 'z', 'x', 'c', 'v',
     'b', 'n', 'm', ',', '.', '/', 0, '*', 0, ' ', 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+static const char scancode_upper[128] = {
+    0,  27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b', '\t',
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n', 0, 'A', 'S',
+    'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0, '|', 'Z', 'X', 'C', 'V',
+    'B', 'N', 'M', '<', '>', '?', 0, '*', 0, ' ', 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -19,6 +28,8 @@ static int q_head = 0;
 static int q_tail = 0;
 
 static int is_extended = 0;
+static int shift_pressed = 0;
+static int caps_lock = 0;
 
 void keyboard_init() {
 }
@@ -28,7 +39,13 @@ void keyboard_handler() {
     if (!(status & 0x01) || (status & 0x20)) return;
     uint8_t scancode = inb(KEYBOARD_DATA_PORT);
 
-    if (scancode & 0x80) return;
+    if (scancode & 0x80) {
+        uint8_t released = scancode & 0x7F;
+        if (released == 0x2A || released == 0x36) {
+            shift_pressed = 0;
+        }
+        return;
+    }
 
     int key = 0;
 
@@ -46,11 +63,30 @@ void keyboard_handler() {
         else if (scancode == 0x53) key = KEY_DELETE;
     } else {
         if (scancode == 0x01) key = KEY_ESC;
-        else if (scancode == 0x0E) key = '\b';
-        else if (scancode == 0x0F) key = '\t';
         else if (scancode == 0x1C) key = '\n';
-        else if (scancode < 128) {
-            char ascii = scancode_to_ascii[scancode];
+        else if (scancode == 0x2A || scancode == 0x36) {
+            shift_pressed = 1;
+            return;
+        } else if (scancode == 0x3A) {
+            caps_lock = !caps_lock;
+            return;
+        } else if (scancode < 128) {
+            char ascii = 0;
+            if ((scancode >= 0x10 && scancode <= 0x19) ||
+                (scancode >= 0x1E && scancode <= 0x26) ||
+                (scancode >= 0x2C && scancode <= 0x32)) {
+                if (shift_pressed ^ caps_lock) {
+                    ascii = scancode_upper[scancode];
+                } else {
+                    ascii = scancode_lower[scancode];
+                }
+            } else {
+                if (shift_pressed) {
+                    ascii = scancode_upper[scancode];
+                } else {
+                    ascii = scancode_lower[scancode];
+                }
+            }
             if (ascii != 0) key = ascii;
         }
     }

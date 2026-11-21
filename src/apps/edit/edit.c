@@ -54,6 +54,15 @@ void run(const char* file) {
             }
         }
 
+        else if (key == KEY_TAB) {
+            for (int i = 0; i < 4; i++) {
+                buf[cursor] = ' ';
+                cursor++;
+                len++;
+                term_print_char(' ');
+            }
+        }
+
         else if (key == KEY_ENTER) {
             for (uint32_t j = len; j > cursor; j--) {
                 buf[j] = buf[j - 1];

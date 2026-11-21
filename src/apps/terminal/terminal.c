@@ -19,12 +19,65 @@ int old_mouse_x = -1;
 int old_mouse_y = -1;
 uint32_t saved_bg[8 * 8];
 
+typedef int (*program_main_t)(void);
+int run_binary(const char *path) {
+    static uint8_t binary_buffer[BLOCK_SIZE * DIRECT_BLOCKS];
+    uint32_t binary_size = 0;
+
+    if (!path) return -1;
+
+    if (read_file(path, binary_buffer, sizeof(binary_buffer), &binary_size) != 0) {
+        term_print("RUN: cannot read file\n");
+        return -1;
+    }
+    if (binary_size < 8) {
+        term_print("RUN: file too small\n");
+        return -1;
+    }
+
+    uint32_t code_size = *(uint32_t*)(binary_buffer + 0);
+    uint32_t data_size = *(uint32_t*)(binary_buffer + 4);
+
+    uint8_t* code = binary_buffer + 8;
+    uint8_t* data = binary_buffer + 8 + code_size;
+
+    for (uint32_t i = 0; i < code_size - 5; i++) {
+        if (code[i] == 0xE8) { 
+            int32_t rel = (int32_t)((uint32_t)term_print - (uint32_t)(code + i + 5));
+            code[i+1] = (rel >> 0) & 0xFF;
+            code[i+2] = (rel >> 8) & 0xFF;
+            code[i+3] = (rel >> 16) & 0xFF;
+            code[i+4] = (rel >> 24) & 0xFF;
+        }
+    }
+
+    for (uint32_t i = 0; i < code_size - 5; i++) {
+        if (code[i] == 0x68) { 
+            uint32_t str_offset = code[i+1] | (code[i+2] << 8) | (code[i+3] << 16) | (code[i+4] << 24);
+            
+            uint32_t str_addr = (uint32_t)data + str_offset; 
+            
+            code[i+1] = (str_addr >> 0) & 0xFF;
+            code[i+2] = (str_addr >> 8) & 0xFF;
+            code[i+3] = (str_addr >> 16) & 0xFF;
+            code[i+4] = (str_addr >> 24) & 0xFF;
+        }
+    }
+
+    typedef int (*binary_main_t)(void);
+    binary_main_t program = (binary_main_t)(uintptr_t)code;
+    
+    int result = program();
+    
+    return result;
+}
+
 void build_path(char* out, const char* arg) {
     if (arg[0] == '/') {
-        my_strcpy(out, arg);
+        strcpy(out, arg);
     } 
     else {
-        my_strcpy(out, cwd);
+        strcpy(out, cwd);
         if (out[1] != '\0') { 
             strcat(out, "/");
         }
@@ -88,13 +141,13 @@ void shell_cd(const char* arg) {
     char new_path[256];
 
     if (arg[0] == '/') {
-        my_strcpy(new_path, arg);
+        strcpy(new_path, arg);
     } else {
         if (cwd[1] == '\0') {
-            my_strcpy(new_path, "/");
+            strcpy(new_path, "/");
             strcat(new_path, arg);
         } else {
-            my_strcpy(new_path, cwd);
+            strcpy(new_path, cwd);
             strcat(new_path, "/");
             strcat(new_path, arg);
         }
@@ -102,14 +155,14 @@ void shell_cd(const char* arg) {
 
     if (strcmp(arg, "..") == 0) {
         if (cwd[1] == '\0') return;
-        int i = my_strlen(cwd) -1;
+        int i = strlen(cwd) -1;
         while (i > 0 && cwd[i] != '/') i--;
         if (i == 0) cwd[1] = '\0';
         else cwd[i] = '\0';
         return;
     }
 
-    my_strcpy(cwd, new_path);
+    strcpy(cwd, new_path);
 }
 
 void term_execute(const char *cmd) {
@@ -132,6 +185,18 @@ void term_execute(const char *cmd) {
        term_print("write <file> <contain> - write contain to file");
        term_print("pwd - show absolute working path");
        term_print("echo - echo, just echo");
+    }
+    if (strcmp(command, "ipscc") == 0) {
+        cmd_ipscc(args);
+    }
+    if (strcmp(command, "irun") == 0) {
+        char target_path[256];
+        build_path(target_path, args);
+        int result = run_binary(target_path);
+        if (result != 0) {
+            term_print_int(result);
+            term_print("\n");
+        }
     }
     if (strcmp(command, "pwd") == 0) {
         term_print(cwd);
@@ -274,8 +339,10 @@ void term_execute(const char *cmd) {
            term_print("Usage: edit <file>\n");
             return;
         }
-
-        run(args);
+        
+        char target_path[256];
+        build_path(target_path, args);
+        run(target_path);
     }
     if (strcmp(command, "touch") == 0) {
         if (args == 0) {
@@ -300,7 +367,6 @@ void term_execute(const char *cmd) {
 
         build_path(target_path, args);
         if (mkdir(target_path) == 0) {
-            term_print("Succes\n");
         }
     }
 }
@@ -348,7 +414,7 @@ void term_run() {
 
     char greeting[64];
     greeting[0] = '\0';
-    my_strcpy(greeting, "IPSOS@");
+    strcpy(greeting, "IPSOS@");
     strcat(greeting, cwd);
     strcat(greeting, " $ ");
     term_print(greeting);
@@ -365,7 +431,7 @@ void term_run() {
                 
                 cmd_len = 0;             
                 char greeting[64];
-                my_strcpy(greeting, "IPSOS@");
+                strcpy(greeting, "IPSOS@");
                 strcat(greeting, cwd);
                 strcat(greeting, " $ ");
                 term_print(greeting);
