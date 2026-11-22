@@ -10,6 +10,8 @@ extern void irq_stub();
 extern void isr6();
 extern void irq12_stub();
 extern void irq1_stub();
+extern void irq0_stub();
+extern void task_yield_stub();
 extern void mouse_handler();
 
 void idt_set_gate(int n, uint32_t handler) {
@@ -31,7 +33,9 @@ void idt_init() {
         idt_set_gate(i, (uint32_t)irq_stub);
     }
 
+    idt_set_gate(0x20, (uint32_t)irq0_stub);
     idt_set_gate(0x21, (uint32_t)irq1_stub);
+    idt_set_gate(0x30, (uint32_t)task_yield_stub);
     idt_set_gate(6, (uint32_t)isr6);
     idt_set_gate(44, (uint32_t)irq12_stub);
 

@@ -88,9 +88,39 @@ void print_char_gr(char c) {
     }
 }
 
+void print_char_gr_cl(char c, uint32_t color) {
+    if (c == '\n') {
+        console_x = 0;
+        console_y += 16;
+        if (console_y >= screen_height) {
+            console_y = screen_height - 16;
+        }
+        return;
+    }
+    if (c == '\b') {
+        draw_rect(console_x, console_y, 8, 16, 0x0000FF);
+        console_x -= 8;
+    }
+
+    draw_char(console_x, console_y, c, color);
+    console_x += 8;
+
+    if (console_x >= screen_width) {
+        console_x = 0;
+        console_y += 16;
+    }
+}
+
 void print_gr(const char* c) {
     while(*c) {
         print_char_gr(*c);
+        c++;
+    }
+}
+
+void print_gr_cl(const char* c, uint32_t color) {
+    while(*c) {
+        print_char_gr_cl(*c, color);
         c++;
     }
 }

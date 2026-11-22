@@ -8,6 +8,8 @@
 
 #define IPSFS_MAGIC              0x49505346u
 #define MAX_INODES               128u
+#define IPSFS_NAME_MAX           28u
+#define IPSFS_LIST_BUFFER_SIZE   (((MAX_INODES - 1u) * (IPSFS_NAME_MAX + 1u)) + 1u)
 #define BLOCK_SIZE               512u
 #define DIRECT_BLOCKS            126u
 
@@ -28,7 +30,7 @@ typedef struct {
 
 typedef struct {
     uint32_t inode;
-    char name[28];
+    char name[IPSFS_NAME_MAX];
 } ips_dirent_t;
 
 /* Stored in six sectors. Block numbers are relative to IPSFS_START_LBA. */

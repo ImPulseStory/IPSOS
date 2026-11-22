@@ -1,5 +1,7 @@
 #include "terminal.h"
 #include "../../tcc/tcc_port.h"
+#include "../../include/exec.h"
+#include "../../include/unistd.h"
 #include <stdint.h>
 
 extern void run(const char* file);
@@ -10,7 +12,7 @@ static char cwd[256] = "/";
 
 int win_x = 0;
 int win_y = 0;
-int win_w = 1024;
+int win_w = 1025;
 int win_h = 768;
 
 int term_x = 0;
@@ -19,6 +21,7 @@ int term_y = 0;
 int old_mouse_x = -1;
 int old_mouse_y = -1;
 uint32_t saved_bg[8 * 8];
+int need = 0;
 
 typedef int (*program_main_t)(void);
 int run_binary(const char *path) {
@@ -116,6 +119,37 @@ void term_print_char(char c) {
     }
 }
 
+void term_print_char_cl(char c, uint32_t color) {
+    if (c == '\b') {
+        gfx_draw_rect(win_x + term_x - 8, win_y + term_y, 8, 16, 0x101010);
+        term_x -= 8;
+        return;
+    }
+    if (c == '\n') {
+        term_x = 0;
+        term_y += 16;
+        if (term_y >= win_h) {
+            term_y = win_h - 16;
+        }
+        return;
+    }
+
+    gfx_print_char(win_x + term_x, win_y + term_y, c, color);
+
+    term_x += 8;
+    if (term_x >= win_w) {
+        term_x = 0;
+        term_y += 16;
+    }
+}
+
+void term_print_cl(const char* str, uint32_t color) {
+    while (*str) {
+        term_print_char_cl(*str, color);
+        str++;
+    }
+}
+
 void term_print(const char* str) {
     while (*str) {
         term_print_char(*str);
@@ -141,29 +175,30 @@ void term_parse_command(char* cmd, char** command, char** args) {
 void shell_cd(const char* arg) {
     char new_path[256];
 
-    if (arg[0] == '/') {
-        strcpy(new_path, arg);
-    } else {
-        if (cwd[1] == '\0') {
-            strcpy(new_path, "/");
-            strcat(new_path, arg);
-        } else {
-            strcpy(new_path, cwd);
-            strcat(new_path, "/");
-            strcat(new_path, arg);
-        }
-    }
+    if (!arg || !*arg)
+        return;
 
     if (strcmp(arg, "..") == 0) {
-        if (cwd[1] == '\0') return;
-        int i = strlen(cwd) -1;
-        while (i > 0 && cwd[i] != '/') i--;
-        if (i == 0) cwd[1] = '\0';
-        else cwd[i] = '\0';
-        return;
+        strcpy(new_path, cwd);
+        if (new_path[1] == '\0')
+            return;
+        int i = strlen(new_path) - 1;
+        while (i > 0 && new_path[i] != '/')
+            --i;
+        if (i == 0)
+            new_path[1] = '\0';
+        else
+            new_path[i] = '\0';
+    } else if (strcmp(arg, ".") == 0) {
+        strcpy(new_path, cwd);
+    } else {
+        build_path(new_path, arg);
     }
 
-    strcpy(cwd, new_path);
+    if (chdir(new_path) == 0)
+        getcwd(cwd, sizeof(cwd));
+    else
+        term_print("cd: directory not found\n");
 }
 
 void term_execute(const char *cmd) {
@@ -186,26 +221,17 @@ void term_execute(const char *cmd) {
        term_print("write <file> <contain> - write contain to file");
        term_print("pwd - show absolute working path");
        term_print("echo - echo, just echo\n");
-       term_print("tcc <file> - compile and run C\n");
+       term_print("tcc <source.c> [-o output] - compile C\n");
+       term_print("./program - run executable\n");
     }
     if (strcmp(command, "ipscc") == 0) {
         cmd_ipscc(args);
     }
     if (strcmp(command, "tcc") == 0) {
-        char source_path[256];
-        int result;
         if (!args || !*args) {
-            term_print("TCC: source path required\n");
-        } else {
-            build_path(source_path, args);
-            result = ips_tcc_run_file(source_path);
-            if (result < 0) {
-                term_print("TCC: failed\n");
-            } else {
-                term_print("TCC: returned ");
-                term_print_int(result);
-                term_print("\n");
-            }
+            term_print("Usage: tcc input.c [-o output] [other.c]\n");
+        } else if (ips_tcc_compile(args) < 0) {
+            term_print("TCC: failed\n");
         }
     }
     if (strcmp(command, "irun") == 0) {
@@ -274,13 +300,29 @@ void term_execute(const char *cmd) {
         }
     }
     if (strcmp(command, "ls") == 0) {
-        char buf[8192] = {0};
-        if (args == 0) {
-            if (list(buf, cwd) == -1) { term_print(""); } 
-            else { term_print(buf); }
+        char buf[IPSFS_LIST_BUFFER_SIZE];
+        char target_path[256];
+        size_t arg_len = args ? strlen(args) : 0;
+        size_t cwd_len = strlen(cwd);
+        size_t prefix_len = (arg_len && args[0] != '/')
+            ? cwd_len + (cwd_len > 1 ? 1u : 0u)
+            : 0u;
+        int result;
+
+        if (prefix_len + arg_len >= sizeof(target_path)) {
+            term_print("ls: path too long\n");
         } else {
-            if (list(buf, args) == -1) { term_print(""); } 
-            else { term_print(buf); }
+            if (!arg_len)
+                strcpy(target_path, cwd);
+            else
+                build_path(target_path, args);
+
+            result = list_ex(buf, target_path, sizeof(buf));
+            if (result < 0) {
+                term_print("ls: cannot read directory\n");
+            } else {
+                term_print(buf);
+            }
         }
     }
     if (strcmp(command, "cat") == 0) {
@@ -388,6 +430,21 @@ void term_execute(const char *cmd) {
         if (mkdir(target_path) == 0) {
         }
     }
+    if (command[0] == '.' && command[1] == '/') {
+        char target_path[256];
+        build_path(target_path, command + 2);
+        int result = exec_elf(target_path, args);
+        if (result < 0) {
+            term_print("EXEC: failed\n");
+        }
+    } else if (command[0] == '/') {
+        char target_path[256];
+        build_path(target_path, command);
+        int result = exec_elf(target_path, args);
+        if (result < 0) {
+            term_print("EXEC: failed\n");
+        }
+    }
 }
 
 void draw_cursor(int x, int y) {
@@ -446,6 +503,7 @@ void term_run() {
                 cmd_buf[cmd_len] = '\0'; 
                 term_print("\n");        
                 
+                need = 1;
                 term_execute(cmd_buf);   
                 
                 cmd_len = 0;             
@@ -454,6 +512,7 @@ void term_run() {
                 strcat(greeting, cwd);
                 strcat(greeting, " $ ");
                 term_print(greeting);
+                need = 0;
             } 
             else if (key == '\b') {
                 if (cmd_len > 0) {
@@ -474,5 +533,13 @@ void term_run() {
             //update_cursor();
             mouse_movedd = 0;
         }
+    }
+}
+
+void update_terminal() {
+    int key = readKey();
+
+    if (key != 0) {
+        term_print_char(key);
     }
 }

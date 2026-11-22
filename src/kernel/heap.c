@@ -19,6 +19,19 @@ static heap_block_t *heap_first;
 static heap_block_t *heap_last;
 static uintptr_t heap_next = (uintptr_t)&kernel_end;
 
+static uint32_t heap_irq_save(void)
+{
+    uint32_t flags;
+    __asm__ volatile("pushfl; popl %0; cli" : "=r"(flags) : : "memory");
+    return flags;
+}
+
+static void heap_irq_restore(uint32_t flags)
+{
+    if (flags & 0x200u)
+        __asm__ volatile("sti" : : : "memory");
+}
+
 static uintptr_t heap_align(uintptr_t value)
 {
     return (value + (HEAP_ALIGNMENT - 1u)) & ~(uintptr_t)(HEAP_ALIGNMENT - 1u);
@@ -65,7 +78,7 @@ static void heap_coalesce(void)
     }
 }
 
-void *kmalloc(uint32_t requested_size)
+static void *kmalloc_unlocked(uint32_t requested_size)
 {
     size_t size = requested_size ? (size_t)requested_size : 1u;
     heap_block_t *block;
@@ -108,7 +121,7 @@ void *kmalloc(uint32_t requested_size)
     return (void *)(block + 1);
 }
 
-void kfree(void *ptr)
+static void kfree_unlocked(void *ptr)
 {
     heap_block_t *block;
 
@@ -123,17 +136,17 @@ void kfree(void *ptr)
     heap_coalesce();
 }
 
-void *krealloc(void *ptr, uint32_t requested_size)
+static void *krealloc_unlocked(void *ptr, uint32_t requested_size)
 {
     heap_block_t *block;
     void *new_ptr;
     size_t copy_size;
 
     if (!ptr)
-        return kmalloc(requested_size);
+        return kmalloc_unlocked(requested_size);
 
     if (!requested_size) {
-        kfree(ptr);
+        kfree_unlocked(ptr);
         return NULL;
     }
 
@@ -146,7 +159,7 @@ void *krealloc(void *ptr, uint32_t requested_size)
         return ptr;
     }
 
-    new_ptr = kmalloc(requested_size);
+    new_ptr = kmalloc_unlocked(requested_size);
     if (!new_ptr)
         return NULL;
 
@@ -158,8 +171,32 @@ void *krealloc(void *ptr, uint32_t requested_size)
             dst[i] = src[i];
     }
 
-    kfree(ptr);
+    kfree_unlocked(ptr);
     return new_ptr;
+}
+
+
+void *kmalloc(uint32_t requested_size)
+{
+    uint32_t flags = heap_irq_save();
+    void *result = kmalloc_unlocked(requested_size);
+    heap_irq_restore(flags);
+    return result;
+}
+
+void kfree(void *ptr)
+{
+    uint32_t flags = heap_irq_save();
+    kfree_unlocked(ptr);
+    heap_irq_restore(flags);
+}
+
+void *krealloc(void *ptr, uint32_t requested_size)
+{
+    uint32_t flags = heap_irq_save();
+    void *result = krealloc_unlocked(ptr, requested_size);
+    heap_irq_restore(flags);
+    return result;
 }
 
 void *malloc(size_t size)

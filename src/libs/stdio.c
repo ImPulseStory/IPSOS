@@ -4,6 +4,7 @@
 #include "../include/errno.h"
 #include "../include/fcntl.h"
 #include "../include/unistd.h"
+#include "../include/task.h"
 #include "../include/ipsfs.h"
 #include <stdint.h>
 #include <stddef.h>
@@ -75,32 +76,91 @@ static int file_valid(FILE *stream)
     return file && file->magic == IPS_FILE_MAGIC;
 }
 
+static int normalize_path(const char *path, char *out, size_t capacity)
+{
+    size_t marks[128];
+    size_t depth = 0;
+    size_t out_length = 1;
+
+    if (!path || !out || capacity < 2 || path[0] != '/')
+        return -1;
+
+    out[0] = '/';
+    out[1] = '\0';
+
+    while (*path == '/')
+        ++path;
+
+    while (*path) {
+        char component[256];
+        size_t component_length = 0;
+
+        while (*path && *path != '/') {
+            if (component_length + 1u >= sizeof(component))
+                return -1;
+            component[component_length++] = *path++;
+        }
+        component[component_length] = '\0';
+
+        while (*path == '/')
+            ++path;
+
+        if (!component_length || (component_length == 1u && component[0] == '.'))
+            continue;
+
+        if (component_length == 2u && component[0] == '.' && component[1] == '.') {
+            if (depth) {
+                out_length = marks[--depth];
+                out[out_length] = '\0';
+            }
+            continue;
+        }
+
+        if (depth >= sizeof(marks) / sizeof(marks[0]))
+            return -1;
+
+        marks[depth++] = out_length;
+        if (out_length > 1u) {
+            if (out_length + 1u >= capacity)
+                return -1;
+            out[out_length++] = '/';
+        }
+        if (out_length + component_length >= capacity)
+            return -1;
+        memcpy(out + out_length, component, component_length);
+        out_length += component_length;
+        out[out_length] = '\0';
+    }
+
+    return 0;
+}
+
 static int make_path(const char *path, char *out, size_t capacity)
 {
-    size_t base_len;
-    size_t path_len;
+    char combined[256];
+    size_t base_length;
+    size_t path_length;
 
-    if (!path || !*path || !out || capacity < 2)
+    if (!path || !*path || !out || capacity < 2u)
         return -1;
 
     if (path[0] == '/') {
-        path_len = strlen(path);
-        if (path_len >= capacity)
+        path_length = strlen(path);
+        if (path_length >= sizeof(combined))
             return -1;
-        memcpy(out, path, path_len + 1u);
-        return 0;
+        memcpy(combined, path, path_length + 1u);
+    } else {
+        base_length = strlen(current_directory);
+        path_length = strlen(path);
+        if (base_length + path_length + (base_length > 1u ? 2u : 1u) > sizeof(combined))
+            return -1;
+        memcpy(combined, current_directory, base_length);
+        if (base_length > 1u)
+            combined[base_length++] = '/';
+        memcpy(combined + base_length, path, path_length + 1u);
     }
 
-    base_len = strlen(current_directory);
-    path_len = strlen(path);
-    if (base_len + path_len + (base_len > 1 ? 2u : 1u) > capacity)
-        return -1;
-
-    memcpy(out, current_directory, base_len);
-    if (base_len > 1)
-        out[base_len++] = '/';
-    memcpy(out + base_len, path, path_len + 1u);
-    return 0;
+    return normalize_path(combined, out, capacity);
 }
 
 static void console_write(const char *data, size_t count)
@@ -1234,15 +1294,25 @@ int chdir(const char *path)
 
 int usleep(unsigned int microseconds)
 {
-    (void)microseconds;
-    errno = ENOSYS;
-    return -1;
+    uint32_t milliseconds;
+    if (!microseconds)
+        return 0;
+    milliseconds = microseconds / 1000u;
+    if (microseconds % 1000u)
+        ++milliseconds;
+    task_sleep(milliseconds);
+    return 0;
 }
 
 unsigned int sleep(unsigned int seconds)
 {
-    (void)seconds;
-    errno = ENOSYS;
+    const unsigned int max_seconds = UINT32_MAX / 1000u;
+    while (seconds > max_seconds) {
+        task_sleep(max_seconds * 1000u);
+        seconds -= max_seconds;
+    }
+    if (seconds)
+        task_sleep(seconds * 1000u);
     return 0;
 }
 

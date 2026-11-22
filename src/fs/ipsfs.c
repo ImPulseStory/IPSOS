@@ -1014,79 +1014,64 @@ ips_memcpy(out + bytes_read, sector, chunk);
 }
 
 int ips_list(const char *dir_path, char *out_buf, int max_len)
-
 {
-
-    int inode_num = ips_resolve_path(dir_path);
-
+    int inode_num;
     ips_inode_t dir;
-
     uint8_t sector[BLOCK_SIZE];
-
     ips_dirent_t *entries = (ips_dirent_t *)sector;
-
     int buf_pos = 0;
-
     int count = 0;
 
-    if (!out_buf || max_len <= 0 || inode_num < 0)
-
+    if (!out_buf || max_len <= 0)
         return -1;
 
     out_buf[0] = '\0';
+    if (!dir_path)
+        return -1;
 
-ips_read_inode((uint32_t)inode_num, &dir);
+    inode_num = ips_resolve_path(dir_path);
+    if (!ips_valid_inode_num(inode_num))
+        return -1;
 
+    ips_memset(&dir, 0, sizeof(dir));
+    ips_read_inode((uint32_t)inode_num, &dir);
     if (dir.type != TYPE_DIR)
-
         return -2;
 
     for (int b = 0; b < DIRECT_BLOCKS; ++b) {
-
         if (dir.blocks[b] == 0)
-
             continue;
-
         if (!ips_valid_data_block(dir.blocks[b]))
-
             return -1;
 
-ips_read_block(dir.blocks[b], sector);
+        ips_read_block(dir.blocks[b], sector);
 
         for (int i = 0; i < 16; ++i) {
-
-            if (entries[i].inode == 0)
-
-                continue;
-
             size_t name_len = 0;
 
-            while (name_len < sizeof(entries[i].name) && entries[i].name[name_len])
+            if (entries[i].inode == 0 ||
+                !ips_valid_inode_num((int)entries[i].inode))
+                continue;
 
+            while (name_len < sizeof(entries[i].name) && entries[i].name[name_len])
                 ++name_len;
 
             if (name_len == 0 || name_len == sizeof(entries[i].name))
-
                 continue;
 
-            if (buf_pos + (int)name_len + 2 > max_len)
-
+            if (buf_pos > max_len - 1 ||
+                (int)name_len + 1 > max_len - buf_pos - 1) {
+                out_buf[0] = '\0';
                 return -1;
+            }
 
-ips_memcpy(out_buf + buf_pos, entries[i].name, name_len);
-
+            ips_memcpy(out_buf + buf_pos, entries[i].name, name_len);
             buf_pos += (int)name_len;
-
             out_buf[buf_pos++] = '\n';
-
             ++count;
-
         }
-
     }
 
     out_buf[buf_pos] = '\0';
-
     return count;
-
 }

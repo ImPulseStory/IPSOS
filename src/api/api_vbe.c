@@ -20,3 +20,11 @@ void gfx_print_char(int x, int y, char c, uint32_t color) {
 uint32_t gfx_get_pixel(int x, int y) {
     return get_pixel(x, y);
 }
+
+void gfx_print_gr_cl(const char* c, uint32_t color) {
+    print_gr_cl(c, color);
+}
+
+void gfx_print_char_gr_cl(char c, uint32_t color) {
+    print_char_gr_cl(c, color);
+}

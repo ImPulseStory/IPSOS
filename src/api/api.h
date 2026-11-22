@@ -14,6 +14,9 @@ void gfx_clear_screen(uint32_t color);
 void gfx_print_char(int x, int y, char c, uint32_t color);
 uint32_t gfx_get_pixel(int x, int y);
 
+void gfx_print_gr_cl(const char* c, uint32_t color);
+void gfx_print_char_gr_cl(char c, uint32_t color);
+
 // # ----------- KEYBOARD -------- # //
 char* input();
 char readKey();
@@ -33,7 +36,8 @@ int read_file(
     uint32_t *out_size
 );
 int write_to_file(const char* name, const char* data);
-int list(char* buf, const char* path);
+int list(char *buffer, const char *path);
+int list_ex(char *buffer, const char *path, uint32_t capacity);
 int mkdir(const char* path);
 
 #endif

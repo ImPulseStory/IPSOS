@@ -15,10 +15,11 @@
 #include "../include/ipsfs.h"
 #include "../api/api.h"
 #include "../apps/terminal/terminal.h"
+#include "../include/task.h"
+#include "../include/task_internal.h"
 #include <stdint.h>
 
 extern int errno;
-extern void ips_tcc_exit(int code);
 extern const unsigned char _binary_build_tcc_headers_tar_start[];
 extern const unsigned char _binary_build_tcc_headers_tar_end[];
 extern long long __divdi3(long long, long long);
@@ -381,10 +382,13 @@ static void tcc_register_runtime_symbols(TCCState *state)
 static void tcc_register_symbols(TCCState *state)
 {
 #define TCC_SYMBOL(n) tcc_add_api_symbol(state, #n, (const void *)(uintptr_t)n)
+    TCC_SYMBOL(term_print_char_cl);
+    TCC_SYMBOL(term_print_cl);
     TCC_SYMBOL(term_print);
     TCC_SYMBOL(term_print_char);
     TCC_SYMBOL(term_print_int);
     TCC_SYMBOL(term_clear);
+    TCC_SYMBOL(term_run);
     TCC_SYMBOL(gfx_draw_pixel);
     TCC_SYMBOL(gfx_draw_rect);
     TCC_SYMBOL(gfx_clear_screen);
@@ -400,6 +404,7 @@ static void tcc_register_symbols(TCCState *state)
     TCC_SYMBOL(read_file);
     TCC_SYMBOL(write_to_file);
     TCC_SYMBOL(list);
+    TCC_SYMBOL(list_ex);
     TCC_SYMBOL(mkdir);
     TCC_SYMBOL(malloc);
     TCC_SYMBOL(free);
@@ -538,7 +543,15 @@ static void tcc_register_symbols(TCCState *state)
     TCC_SYMBOL(__fixunsxfdi);
     TCC_SYMBOL(__fixxfdi);
     TCC_SYMBOL(alloca);
-    tcc_add_api_symbol(state, "abort", (const void *)(uintptr_t)ips_tcc_exit);
+    TCC_SYMBOL(update_terminal);
+    TCC_SYMBOL(task_create);
+    TCC_SYMBOL(task_yield);
+    TCC_SYMBOL(task_sleep);
+    TCC_SYMBOL(task_exit);
+    TCC_SYMBOL(task_get_id);
+    tcc_add_api_symbol(state, "exit", (const void *)(uintptr_t)ips_process_exit);
+    tcc_add_api_symbol(state, "_Exit", (const void *)(uintptr_t)ips_process_exit);
+    tcc_add_api_symbol(state, "abort", (const void *)(uintptr_t)ips_process_abort);
     tcc_add_api_symbol(state, "errno", &errno);
     tcc_add_api_symbol(state, "stdin", &stdin);
     tcc_add_api_symbol(state, "stdout", &stdout);
@@ -547,52 +560,255 @@ static void tcc_register_symbols(TCCState *state)
 #undef TCC_SYMBOL
 }
 
-int ips_tcc_run_file(const char *path)
-{
-    TCCState *state;
-    int result;
+#define TCC_COMMAND_MAX_TOKENS 24
+#define TCC_COMMAND_MAX_FILES 16
 
-    if (!path || !*path) {
-        term_print("TCC: source path required\n");
+typedef struct {
+    char storage[256];
+    char *tokens[TCC_COMMAND_MAX_TOKENS];
+    char source_paths[TCC_COMMAND_MAX_FILES][256];
+    char include_paths[TCC_COMMAND_MAX_FILES][256];
+    char library_paths[TCC_COMMAND_MAX_FILES][256];
+    char *libraries[TCC_COMMAND_MAX_FILES];
+    char output_path[256];
+    char options[512];
+} tcc_command_workspace_t;
+
+static int tcc_split_command(const char *input, char *storage, char **tokens, int capacity)
+{
+    int count = 0;
+    int quoted = 0;
+    char *out = storage;
+
+    if (!input)
+        return -1;
+
+    while (*input) {
+        while (*input == ' ' || *input == '\t')
+            ++input;
+        if (!*input)
+            break;
+        if (count >= capacity)
+            return -1;
+
+        tokens[count++] = out;
+        quoted = 0;
+
+        while (*input) {
+            if (*input == '"') {
+                quoted = !quoted;
+                ++input;
+                continue;
+            }
+            if (!quoted && (*input == ' ' || *input == '\t'))
+                break;
+            *out++ = *input++;
+        }
+        if (quoted)
+            return -1;
+        *out++ = '\0';
+    }
+
+    return count;
+}
+
+static int tcc_append_option(char *buffer, size_t capacity, const char *option)
+{
+    size_t used = strlen(buffer);
+    size_t length = strlen(option);
+
+    if (used + length + 2u > capacity)
+        return -1;
+    if (used)
+        buffer[used++] = ' ';
+    memcpy(buffer + used, option, length + 1u);
+    return 0;
+}
+
+int ips_tcc_compile(const char *arguments)
+{
+    tcc_command_workspace_t *workspace;
+    int token_count;
+    int source_count = 0;
+    int include_count = 0;
+    int library_path_count = 0;
+    int library_count = 0;
+    int have_output = 0;
+    TCCState *state = NULL;
+    int result = -1;
+
+    if (!arguments || !*arguments) {
+        term_print("Usage: tcc input.c [-o output] [other.c] [-I path] [-L path] [-lname]\n");
         return -1;
     }
 
+    workspace = (tcc_command_workspace_t *)calloc(1, sizeof(*workspace));
+    if (!workspace) {
+        term_print("TCC: out of memory\n");
+        return -1;
+    }
+
+    token_count = tcc_split_command(arguments, workspace->storage,
+                                    workspace->tokens, TCC_COMMAND_MAX_TOKENS);
+    if (token_count <= 0) {
+        term_print("TCC: invalid arguments\n");
+        goto cleanup;
+    }
+
+    for (int i = 0; i < token_count; ++i) {
+        char path[256];
+        char *token = workspace->tokens[i];
+
+        if (strcmp(token, "-o") == 0) {
+            if (++i >= token_count || have_output)
+                goto invalid_arguments;
+            build_path(workspace->output_path, workspace->tokens[i]);
+            have_output = 1;
+            continue;
+        }
+
+        if (strcmp(token, "-I") == 0 || strcmp(token, "-L") == 0) {
+            int is_include = token[1] == 'I';
+            if (++i >= token_count)
+                goto invalid_arguments;
+            build_path(path, workspace->tokens[i]);
+            if (is_include) {
+                if (include_count >= TCC_COMMAND_MAX_FILES)
+                    goto invalid_arguments;
+                strcpy(workspace->include_paths[include_count++], path);
+            } else {
+                if (library_path_count >= TCC_COMMAND_MAX_FILES)
+                    goto invalid_arguments;
+                strcpy(workspace->library_paths[library_path_count++], path);
+            }
+            continue;
+        }
+
+        if (token[0] == '-' && token[1] == 'I' && token[2]) {
+            build_path(path, token + 2);
+            if (include_count >= TCC_COMMAND_MAX_FILES)
+                goto invalid_arguments;
+            strcpy(workspace->include_paths[include_count++], path);
+            continue;
+        }
+
+        if (token[0] == '-' && token[1] == 'L' && token[2]) {
+            build_path(path, token + 2);
+            if (library_path_count >= TCC_COMMAND_MAX_FILES)
+                goto invalid_arguments;
+            strcpy(workspace->library_paths[library_path_count++], path);
+            continue;
+        }
+
+        if (strcmp(token, "-l") == 0) {
+            if (++i >= token_count || library_count >= TCC_COMMAND_MAX_FILES)
+                goto invalid_arguments;
+            workspace->libraries[library_count++] = workspace->tokens[i];
+            continue;
+        }
+
+        if (token[0] == '-' && token[1] == 'l' && token[2]) {
+            if (library_count >= TCC_COMMAND_MAX_FILES)
+                goto invalid_arguments;
+            workspace->libraries[library_count++] = token + 2;
+            continue;
+        }
+
+        if (strcmp(token, "-D") == 0 || strcmp(token, "-U") == 0 ||
+            strcmp(token, "-include") == 0 || strcmp(token, "-isystem") == 0 ||
+            strcmp(token, "-x") == 0) {
+            if (++i >= token_count ||
+                tcc_append_option(workspace->options, sizeof(workspace->options), token) != 0 ||
+                tcc_append_option(workspace->options, sizeof(workspace->options), workspace->tokens[i]) != 0)
+                goto invalid_arguments;
+            continue;
+        }
+
+        if (token[0] == '-') {
+            if (tcc_append_option(workspace->options, sizeof(workspace->options), token) != 0)
+                goto invalid_arguments;
+            continue;
+        }
+
+        if (source_count >= TCC_COMMAND_MAX_FILES)
+            goto invalid_arguments;
+        build_path(path, token);
+        strcpy(workspace->source_paths[source_count++], path);
+    }
+
+    if (!have_output || !source_count)
+        goto invalid_arguments;
+
     if (tcc_install_headers() < 0) {
         term_print("TCC: cannot install headers\n");
-        return -1;
+        goto cleanup;
+    }
+
+    if (tcc_append_option(workspace->options, sizeof(workspace->options), "-nostdinc") != 0 ||
+        tcc_append_option(workspace->options, sizeof(workspace->options), "-nostdlib") != 0 ||
+        tcc_append_option(workspace->options, sizeof(workspace->options), "-static") != 0 ||
+        tcc_append_option(workspace->options, sizeof(workspace->options), "-Wl,-nostdlib") != 0 ||
+        tcc_append_option(workspace->options, sizeof(workspace->options), "-Wl,-e,main") != 0 ||
+        tcc_append_option(workspace->options, sizeof(workspace->options), "-Wl,-Ttext=00c00000") != 0) {
+        term_print("TCC: too many options\n");
+        goto cleanup;
     }
 
     tcc_set_realloc(ips_tcc_reallocator);
     state = tcc_new();
     if (!state) {
         term_print("TCC: cannot create state\n");
-        return -1;
+        goto cleanup;
     }
 
     tcc_set_error_func(state, NULL, tcc_error);
     tcc_set_lib_path(state, "/tcc");
 
-    if (tcc_set_options(state, "-nostdinc -nostdlib") < 0 ||
-        tcc_set_output_type(state, TCC_OUTPUT_MEMORY) < 0) {
-        tcc_delete(state);
-        return -1;
-    }
+    if (tcc_set_options(state, workspace->options) < 0 ||
+        tcc_set_output_type(state, TCC_OUTPUT_EXE) < 0)
+        goto cleanup;
 
     tcc_add_include_path(state, "/include");
     tcc_add_include_path(state, "/include/tcc");
+    tcc_add_include_path(state, "/sys");
+    tcc_add_library_path(state, "/sys");
+    tcc_add_library_path(state, "/lib");
+
+    for (int i = 0; i < include_count; ++i)
+        tcc_add_include_path(state, workspace->include_paths[i]);
+    for (int i = 0; i < library_path_count; ++i)
+        tcc_add_library_path(state, workspace->library_paths[i]);
+
     tcc_register_symbols(state);
 
-    if (tcc_add_file(state, path) < 0) {
-        tcc_delete(state);
-        return -1;
+    for (int i = 0; i < source_count; ++i) {
+        if (tcc_add_file(state, workspace->source_paths[i]) < 0)
+            goto cleanup;
     }
 
-    {
-        char *program_argv[2];
-        program_argv[0] = (char *)path;
-        program_argv[1] = NULL;
-        result = tcc_run(state, 1, program_argv);
+    for (int i = 0; i < library_count; ++i) {
+        if (tcc_add_library(state, workspace->libraries[i]) < 0)
+            goto cleanup;
     }
-    tcc_delete(state);
+
+    if (tcc_output_file(state, workspace->output_path) < 0) {
+        term_print("TCC: cannot write executable\n");
+        goto cleanup;
+    }
+
+    term_print("TCC: compilation successful\nOutput: ");
+    term_print(workspace->output_path);
+    term_print("\n");
+    result = 0;
+    goto cleanup;
+
+invalid_arguments:
+    term_print("Usage: tcc input.c [-o output] [other.c] [-I path] [-L path] [-lname]\n");
+
+cleanup:
+    if (state)
+        tcc_delete(state);
+    free(workspace);
     return result;
 }
+
