@@ -11,3 +11,6 @@ int mouse_y() {
 int mouse_moved() {
     return get_mouse_moved();
 }
+int mouse_buttons() {
+    return get_mouse_buttons();
+}

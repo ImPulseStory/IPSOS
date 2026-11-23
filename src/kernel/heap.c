@@ -14,6 +14,8 @@ typedef struct heap_block {
 #define HEAP_MAGIC 0x49505348u
 #define HEAP_ALIGNMENT 8u
 #define HEAP_LIMIT 0x00B00000u
+#define HEAP_RESERVED_START 0x000A0000u
+#define HEAP_RESERVED_END   0x00100000u
 
 static heap_block_t *heap_first;
 static heap_block_t *heap_last;
@@ -35,6 +37,18 @@ static void heap_irq_restore(uint32_t flags)
 static uintptr_t heap_align(uintptr_t value)
 {
     return (value + (HEAP_ALIGNMENT - 1u)) & ~(uintptr_t)(HEAP_ALIGNMENT - 1u);
+}
+
+static uintptr_t heap_skip_reserved(uintptr_t address, size_t span)
+{
+    if (address >= HEAP_RESERVED_START && address < HEAP_RESERVED_END)
+        return heap_align(HEAP_RESERVED_END);
+
+    if (address < HEAP_RESERVED_START &&
+        span > (size_t)(HEAP_RESERVED_START - address))
+        return heap_align(HEAP_RESERVED_END);
+
+    return address;
 }
 
 static void heap_split(heap_block_t *block, size_t size)
@@ -100,6 +114,7 @@ static void *kmalloc_unlocked(uint32_t requested_size)
     }
 
     block_address = heap_align(heap_next);
+    block_address = heap_skip_reserved(block_address, sizeof(heap_block_t) + size);
     if (block_address > UINTPTR_MAX - sizeof(heap_block_t) - size ||
         block_address > HEAP_LIMIT - sizeof(heap_block_t) - size)
         return NULL;

@@ -1,4 +1,7 @@
 #include "../include/exec.h"
+#include "../include/window.h"
+
+extern void window_destroy_owner(unsigned int owner_task);
 #include "../include/ipsfs.h"
 #include "../include/heap.h"
 #include "../include/stdlib.h"
@@ -61,6 +64,7 @@ static void exec_program_task(void *arg)
 {
     exec_context_t *context = (exec_context_t *)arg;
     context->result = context->entry(context->argc, context->argv, 0);
+    window_destroy_owner(task_get_id());
     task_exit();
 }
 

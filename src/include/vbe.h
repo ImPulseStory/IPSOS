@@ -1,20 +1,13 @@
 #ifndef VBE_H
 #define VBE_H
 
-#include "font.h"
-
 #include <stdint.h>
 
-void vbe_init();
-void put_pixel(int x, int y, uint32_t color);
-void draw_rect(int x, int y, int w, int h, uint32_t color);
-void clear_screen(uint32_t color);
-void flush_screen();
-void draw_char(int x, int y, char c, uint32_t color);
-void print_char_gr(char c);
-void print_gr(const char* c);
-uint32_t get_pixel(int x, int y);
-void print_gr_cl(const char* c, uint32_t color);
-void print_char_gr_cl(char c, uint32_t color);
+void vbe_init(void);
+int vbe_is_ready(void);
+volatile uint32_t *vbe_get_framebuffer(void);
+uint32_t vbe_get_pitch(void);
+uint16_t vbe_get_width(void);
+uint16_t vbe_get_height(void);
 
 #endif

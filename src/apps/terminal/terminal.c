@@ -1,6 +1,7 @@
 #include "terminal.h"
 #include "../../tcc/tcc_port.h"
 #include "../../include/exec.h"
+#include "../../include/gfx.h"
 #include "../../include/unistd.h"
 #include <stdint.h>
 
@@ -17,11 +18,97 @@ int win_h = 768;
 
 int term_x = 0;
 int term_y = 0;
+static Window_t *terminal_window = 0;
 
-int old_mouse_x = -1;
-int old_mouse_y = -1;
-uint32_t saved_bg[8 * 8];
-int need = 0;
+static void term_invalidate_client(void)
+{
+    if (terminal_window)
+        desktop_invalidate_rect(terminal_window->x + 1, terminal_window->y + 22,
+                                terminal_window->w - 2, terminal_window->h - 23);
+    else
+        desktop_invalidate();
+}
+
+static void term_invalidate_cell(int x, int y)
+{
+    if (terminal_window)
+        desktop_invalidate_rect(terminal_window->x + 1 + x, terminal_window->y + 22 + y, 8, 16);
+    else
+        desktop_invalidate();
+}
+
+#define TERM_MAX_COLS 128
+#define TERM_MAX_ROWS 48
+#define TERM_BACKGROUND 0x00101010u
+
+typedef struct {
+    char character;
+    uint32_t color;
+} TerminalCell;
+
+static TerminalCell terminal_cells[TERM_MAX_COLS * TERM_MAX_ROWS];
+static int terminal_cols;
+static int terminal_rows;
+
+static uint32_t terminal_irq_save(void);
+static void terminal_irq_restore(uint32_t flags);
+
+static void term_redraw_window(Window_t *window) {
+    int cols;
+    int rows;
+    int origin_x;
+    int origin_y;
+    int clip_x, clip_y, clip_w, clip_h;
+    int first_col, last_col, first_row, last_row;
+
+    if (!window)
+        return;
+
+    cols = (window->w - 2) / 8;
+    rows = (window->h - 23) / 16;
+    if (cols > terminal_cols) cols = terminal_cols;
+    if (rows > terminal_rows) rows = terminal_rows;
+    if (cols <= 0 || rows <= 0) return;
+
+    origin_x = window->x + 1;
+    origin_y = window->y + 22;
+    gfx_get_clip(&clip_x, &clip_y, &clip_w, &clip_h);
+    gfx_draw_rect(origin_x, origin_y, cols * 8, rows * 16, TERM_BACKGROUND);
+
+    first_col = (clip_x - origin_x) / 8;
+    first_row = (clip_y - origin_y) / 16;
+    last_col = (clip_x + clip_w - origin_x + 7) / 8;
+    last_row = (clip_y + clip_h - origin_y + 15) / 16;
+    if (first_col < 0) first_col = 0;
+    if (first_row < 0) first_row = 0;
+    if (last_col > cols) last_col = cols;
+    if (last_row > rows) last_row = rows;
+
+    for (int row = first_row; row < last_row; ++row) {
+        for (int col = first_col; col < last_col; ++col) {
+            TerminalCell *cell = &terminal_cells[row * terminal_cols + col];
+            uint32_t flags = terminal_irq_save();
+            char character = cell->character;
+            uint32_t color = cell->color;
+            terminal_irq_restore(flags);
+
+            if (character && character != ' ')
+                gfx_draw_char(origin_x + col * 8, origin_y + row * 16,
+                              character, color);
+        }
+    }
+}
+
+static uint32_t terminal_irq_save(void) {
+    uint32_t flags;
+    __asm__ volatile("pushfl; popl %0; cli" : "=r"(flags) : : "memory");
+    return flags;
+}
+
+static void terminal_irq_restore(uint32_t flags) {
+    if (flags & 0x200u)
+        __asm__ volatile("sti" : : : "memory");
+}
 
 typedef int (*program_main_t)(void);
 int run_binary(const char *path) {
@@ -89,72 +176,152 @@ void build_path(char* out, const char* arg) {
     }
 }
 
-void term_clear() {
-    gfx_draw_rect(win_x+1, win_y+1, win_w-2, win_h-2, 0x101010);
+static void term_scroll_up(void) {
+    uint32_t flags;
+
+    if (terminal_rows <= 0 || terminal_cols <= 0) {
+        term_y = 0;
+        return;
+    }
+
+    flags = terminal_irq_save();
+    for (int row = 0; row < terminal_rows - 1; ++row) {
+        for (int col = 0; col < terminal_cols; ++col)
+            terminal_cells[row * terminal_cols + col] =
+                terminal_cells[(row + 1) * terminal_cols + col];
+    }
+
+    for (int col = 0; col < terminal_cols; ++col) {
+        TerminalCell *cell = &terminal_cells[(terminal_rows - 1) * terminal_cols + col];
+        cell->character = ' ';
+        cell->color = 0x00FFFFFFu;
+    }
+
+    term_y = (terminal_rows - 1) * 16;
+    terminal_irq_restore(flags);
+}
+
+static int term_new_line(void) {
+    term_x = 0;
+    term_y += 16;
+
+    if (term_y + 16 > win_h) {
+        term_scroll_up();
+        return 1;
+    }
+    return 0;
+}
+
+static void term_draw_cell(int x, int y, char c, uint32_t color) {
+    int col = x / 8;
+    int row = y / 16;
+
+    if (col < 0 || col >= terminal_cols || row < 0 || row >= terminal_rows)
+        return;
+
+    uint32_t flags = terminal_irq_save();
+    terminal_cells[row * terminal_cols + col].color = color;
+    terminal_cells[row * terminal_cols + col].character = c;
+    terminal_irq_restore(flags);
+}
+
+static void term_clear_cell(int x, int y) {
+    int col = x / 8;
+    int row = y / 16;
+
+    if (col < 0 || col >= terminal_cols || row < 0 || row >= terminal_rows)
+        return;
+
+    uint32_t flags = terminal_irq_save();
+    terminal_cells[row * terminal_cols + col].character = ' ';
+    terminal_cells[row * terminal_cols + col].color = 0x00FFFFFFu;
+    terminal_irq_restore(flags);
+}
+
+void term_clear(void) {
+    uint32_t flags = terminal_irq_save();
+
+    for (int i = 0; i < terminal_cols * terminal_rows; ++i) {
+        terminal_cells[i].character = ' ';
+        terminal_cells[i].color = 0x00FFFFFFu;
+    }
+
     term_x = 0;
     term_y = 0;
+    terminal_irq_restore(flags);
+    term_invalidate_client();
 }
 
 void term_print_char(char c) {
+    int cell_x, cell_y;
     if (c == '\b') {
-        gfx_draw_rect(win_x + term_x - 8, win_y + term_y, 8, 16, 0x101010);
-        term_x -= 8;
-        return;
-    }
-    if (c == '\n') {
-        term_x = 0;
-        term_y += 16;
-        if (term_y >= win_h) {
-            term_y = win_h - 16;
+        if (term_x >= 8) {
+            term_x -= 8;
+        } else if (term_y >= 16) {
+            term_y -= 16;
+            term_x = win_w - 8;
+        } else {
+            return;
         }
+        term_clear_cell(term_x, term_y);
+        term_invalidate_cell(term_x, term_y);
         return;
     }
 
-    gfx_print_char(win_x + term_x, win_y + term_y, c, 0xFFFFFF);
-
-    term_x += 8;
-    if (term_x >= win_w) {
-        term_x = 0;
-        term_y += 16;
+    if (c == '\n') {
+        if (term_new_line()) term_invalidate_client();
+        return;
     }
+
+    cell_x = term_x;
+    cell_y = term_y;
+    term_draw_cell(cell_x, cell_y, c, 0x00FFFFFFu);
+    term_x += 8;
+    if (term_x >= win_w && term_new_line())
+        term_invalidate_client();
+    else
+        term_invalidate_cell(cell_x, cell_y);
 }
 
 void term_print_char_cl(char c, uint32_t color) {
+    int cell_x, cell_y;
     if (c == '\b') {
-        gfx_draw_rect(win_x + term_x - 8, win_y + term_y, 8, 16, 0x101010);
-        term_x -= 8;
-        return;
-    }
-    if (c == '\n') {
-        term_x = 0;
-        term_y += 16;
-        if (term_y >= win_h) {
-            term_y = win_h - 16;
+        if (term_x >= 8) {
+            term_x -= 8;
+        } else if (term_y >= 16) {
+            term_y -= 16;
+            term_x = win_w - 8;
+        } else {
+            return;
         }
+        term_clear_cell(term_x, term_y);
+        term_invalidate_cell(term_x, term_y);
         return;
     }
 
-    gfx_print_char(win_x + term_x, win_y + term_y, c, color);
+    if (c == '\n') {
+        if (term_new_line()) term_invalidate_client();
+        return;
+    }
 
+    cell_x = term_x;
+    cell_y = term_y;
+    term_draw_cell(cell_x, cell_y, c, color);
     term_x += 8;
-    if (term_x >= win_w) {
-        term_x = 0;
-        term_y += 16;
-    }
+    if (term_x >= win_w && term_new_line())
+        term_invalidate_client();
+    else
+        term_invalidate_cell(cell_x, cell_y);
 }
 
-void term_print_cl(const char* str, uint32_t color) {
-    while (*str) {
-        term_print_char_cl(*str, color);
-        str++;
-    }
+void term_print_cl(const char *str, uint32_t color) {
+    while (*str)
+        term_print_char_cl(*str++, color);
 }
 
-void term_print(const char* str) {
-    while (*str) {
-        term_print_char(*str);
-        str++;
-    }
+void term_print(const char *str) {
+    while (*str)
+        term_print_char(*str++);
 }
 
 void term_parse_command(char* cmd, char** command, char** args) {
@@ -447,10 +614,6 @@ void term_execute(const char *cmd) {
     }
 }
 
-void draw_cursor(int x, int y) {
-    gfx_draw_rect(x, y, 10, 10, 0xFF0000);
-}
-
 void term_print_int(int n) {
     char buf[512];
     int i = 0;
@@ -462,30 +625,35 @@ void term_print_int(int n) {
     } while (i > 0) { term_print_char(buf[--i]); }
 }
 
-void update_cursor() {
-    if (old_mouse_x != -1) {
-        for (int y = 0; y < 8; y++) {
-            for (int x = 0; x < 8; x++) {
-                gfx_draw_pixel(old_mouse_x + x, old_mouse_y + y, saved_bg[y * 8 + x]);
-            }
-        }
-    }
+void set_up() {
+    if (terminal_window)
+        return;
 
-    for (int y = 0; y < 8; y++) {
-        for (int x = 0; x < 8; x++) {
-            saved_bg[y * 8 + x] = gfx_get_pixel(get_mouse_x() + x, get_mouse_y() + y);
-        }
-    }
+    terminal_window = wm_create(100, 100, 900, 600, "TERMINAL", 1);
+    if (!terminal_window)
+        return;
 
-    draw_cursor(get_mouse_x(), get_mouse_y());
-
-    old_mouse_x = mouse_x();
-    old_mouse_y = mouse_y();
+    win_x = terminal_window->x + 1;
+    win_y = terminal_window->y + 22;
+    win_w = ((terminal_window->w - 2) / 8) * 8;
+    win_h = ((terminal_window->h - 23) / 16) * 16;
+    terminal_cols = win_w / 8;
+    terminal_rows = win_h / 16;
+    if (terminal_cols > TERM_MAX_COLS)
+        terminal_cols = TERM_MAX_COLS;
+    if (terminal_rows > TERM_MAX_ROWS)
+        terminal_rows = TERM_MAX_ROWS;
+    wm_set_renderer(terminal_window, term_redraw_window);
+    term_clear();
 }
-
 
 void term_run() {
     char cmd_buf[256];
+
+    if (!terminal_window)
+        set_up();
+    if (!terminal_window)
+        return;
     int cmd_len = 0;
 
     char greeting[64];
@@ -503,8 +671,7 @@ void term_run() {
                 cmd_buf[cmd_len] = '\0'; 
                 term_print("\n");        
                 
-                need = 1;
-                term_execute(cmd_buf);   
+                term_execute(cmd_buf);
                 
                 cmd_len = 0;             
                 char greeting[64];
@@ -512,7 +679,6 @@ void term_run() {
                 strcat(greeting, cwd);
                 strcat(greeting, " $ ");
                 term_print(greeting);
-                need = 0;
             } 
             else if (key == '\b') {
                 if (cmd_len > 0) {

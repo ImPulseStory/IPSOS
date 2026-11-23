@@ -1,3 +1,9 @@
+# TCC Window API
+
+Applications compiled with the built-in TCC can use `<window.h>` to create and
+manage WM windows. See [API_WINDOWS.md](API_WINDOWS.md) and
+`examples/window_demo.c` for a minimal application.
+
 ### IPSOS
 
 IPSOS — это учебная 32-битная операционная система, написанная с нуля на NASM и C.
@@ -61,7 +67,7 @@ src/
 
     i686-elf-gcc (кросс-компилятор)
 
-    qemu-system-x86_64
+    qemu-system-x86_64 с поддержкой virtio-gpu-pci / VirtIO-GPU
 
     make
 
@@ -77,7 +83,7 @@ make all
 make run
 ```
 
-(Или вручную через QEMU: qemu-system-x86_64 -drive file=ipsos.img,format=raw,if=ide,index=0)
+(Графика требует VirtIO-GPU: `qemu-system-x86_64 -m 128M -vga none -device virtio-gpu-pci -drive file=ipsos.img,format=raw,if=ide,index=0 -debugcon stdio -no-reboot -no-shutdown`. Используется PCI-вариант без VGA-совместимой legacy-апертуры.)
 
 ### Планы на будущее (Roadmap)
 
@@ -96,3 +102,20 @@ make run
     GitHub: ImPulseStory
 
     Telegram: @IamProgramm
+## Graphics backend
+
+IPSOS uses VirtIO-GPU. `make run` defaults to QEMU VirGL (`virtio-gpu-gl` with GTK GL enabled); use `make run QEMU_GPU=virtio-gpu-pci QEMU_DISPLAY=gtk` for 2D-only fallback. See `API_GFX.md` and `API_VIRGL_GL.md` for the public graphics interfaces and current limitations.
+
+## VirGL 3D test
+
+`examples/triangle3d.c` demonstrates the current experimental VirGL triangle
+pipeline, a vertex buffer, TGSI shaders (not GLSL), and depth testing. The
+indexed-buffer path is demonstrated in `examples/indexed_triangle3d.c`. See
+`API_VIRGL_GL.md` for the supported subset and current limitations.
+
+## VirGL 3D test programs
+
+The `examples/` directory contains TCC programs for a GPU triangle, indexed
+geometry, and a perspective-projected cube with depth testing. Copy an example
+into IPSOS's filesystem, then compile it with `tcc cube3d.c -o cube3d`. See
+`API_VIRGL_GL.md` for the current API boundary and the QEMU GL configuration.

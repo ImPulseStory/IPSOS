@@ -84,6 +84,11 @@ void keyboard_handler(void) {
             case 0x50: key = KEY_DOWN; break;
             case 0x4B: key = KEY_LEFT; break;
             case 0x4D: key = KEY_RIGHT; break;
+            case 0x47: key = KEY_HOME; break;
+            case 0x4F: key = KEY_END; break;
+            case 0x49: key = KEY_PAGE_UP; break;
+            case 0x51: key = KEY_PAGE_DOWN; break;
+            case 0x52: key = KEY_INSERT; break;
             case 0x53: key = KEY_DELETE; break;
             default: break;
         }
@@ -98,6 +103,12 @@ void keyboard_handler(void) {
         } else if (code == 0x3A) {
             caps_lock = !caps_lock;
             return;
+        } else if (code >= 0x3B && code <= 0x44) {
+            key = KEY_F1 + (code - 0x3B);
+        } else if (code == 0x57) {
+            key = KEY_F11;
+        } else if (code == 0x58) {
+            key = KEY_F12;
         } else if (code < 128) {
             char ascii;
 

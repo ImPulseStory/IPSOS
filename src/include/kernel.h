@@ -8,9 +8,7 @@
 #include "idt.h"
 #include "keyboard.h"
 #include "pic.h"
-#include "vbe.h"
 #include "heap.h"
-#include "../apps/IPDesktop/desktop.h"
 #include "ipsfs.h"
 #include "../apps/terminal/terminal.h"
 

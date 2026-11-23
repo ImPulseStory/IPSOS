@@ -15,5 +15,6 @@ void mouse_handler();
 int get_mouse_x();
 int get_mouse_y();
 int get_mouse_moved();
+int get_mouse_buttons();
 
 #endif

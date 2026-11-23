@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "../../include/libc.h"
+#include "../../include/desktop.h"
 #include "../../api/api.h"
 
 void term_print_char(char c);
@@ -21,5 +22,6 @@ void term_execute(const char *cmd);
 void cmd_ipscc(const char *args);
 void term_print_int(int n);
 void update_terminal();
+void set_up();
 
 #endif

@@ -19,6 +19,8 @@ FLAGS = -I./src/include -g -ffreestanding -nostdlib -nostartfiles -nodefaultlibs
 FILES = \
 	./build/kernel.asm.o \
 	./build/kernel.o \
+	./build/example_seed.o \
+	./build/cube3d_source.o \
 	./build/idt.o \
 	./build/idt_c.o \
 	./build/pic.o \
@@ -31,17 +33,22 @@ FILES = \
 	./build/libc.o \
 	./build/stdio.o \
 	./build/edit.o \
-	./build/vbe.o \
+	./build/pci.o \
+	./build/virtio_gpu.o \
+	./build/virgl.o \
+	./build/gl.o \
+	./build/gfx.o \
 	./build/heap.o \
 	./build/font_8x16.o \
 	./build/terminal.o \
 	./build/mouse.o \
 	./build/desktop.o \
-	./build/api_vbe.o \
+	./build/api_gfx.o \
 	./build/kern_term.o \
 	./build/api_keyboard.o \
 	./build/api_mouse.o \
 	./build/api_fs.o \
+	./build/api_window.o \
 	./build/wm.o \
 	./build/ipsfs.o \
 	./build/ipscc.o \
@@ -57,7 +64,7 @@ FILES = \
 	./build/tcc_sys.o \
 	./build/tcc_headers.o
 
-.PHONY: all clean run rungdb disk-update disk-init format-disk
+.PHONY: all clean run run-virgl rungdb rungdb-virgl disk-update disk-init format-disk install-examples
 
 all: disk-update
 
@@ -86,6 +93,13 @@ endef
 
 ./build/kernel.o: ./src/kernel/kernel.c | ./build
 	$(call compile,$<,$@)
+
+./build/example_seed.o: ./src/kernel/example_seed.c | ./build
+	$(call compile,$<,$@)
+
+./build/cube3d_source.o: ./examples/cube3d.c | ./build
+	$(call say,EMBED,$<)
+	$(Q)$(OBJCOPY) --input-target=binary --output-target=elf32-i386 --binary-architecture=i386 $< $@
 
 ./build/idt_c.o: ./src/cpu/idt.c | ./build
 	$(call compile,$<,$@)
@@ -120,8 +134,20 @@ endef
 ./build/edit.o: ./src/apps/edit/edit.c | ./build
 	$(call compile,$<,$@)
 
-./build/vbe.o: ./src/drivers/vbe.c | ./build
-	$(call compile,$<,$@)
+./build/pci.o: ./src/drivers/pci.c | ./build
+	$(call compile,$<,$@,-O2)
+
+./build/virtio_gpu.o: ./src/drivers/virtio_gpu.c | ./build
+	$(call compile,$<,$@,-O2)
+
+./build/virgl.o: ./src/drivers/virgl.c | ./build
+	$(call compile,$<,$@,-O2)
+
+./build/gl.o: ./src/drivers/gl.c | ./build
+	$(call compile,$<,$@,-O2)
+
+./build/gfx.o: ./src/drivers/gfx.c | ./build
+	$(call compile,$<,$@,-O2)
 
 ./build/heap.o: ./src/kernel/heap.c | ./build
 	$(call compile,$<,$@)
@@ -130,15 +156,15 @@ endef
 	$(call compile,$<,$@)
 
 ./build/terminal.o: ./src/apps/terminal/terminal.c | ./build
-	$(call compile,$<,$@)
+	$(call compile,$<,$@,-O2)
 
 ./build/mouse.o: ./src/drivers/mouse.c | ./build
 	$(call compile,$<,$@)
 
 ./build/desktop.o: ./src/apps/IPDesktop/desktop.c | ./build
-	$(call compile,$<,$@)
+	$(call compile,$<,$@,-O2)
 
-./build/api_vbe.o: ./src/api/api_vbe.c | ./build
+./build/api_gfx.o: ./src/api/api_gfx.c | ./build
 	$(call compile,$<,$@)
 
 ./build/kern_term.o: ./src/kernel/kern_term.c | ./build
@@ -153,8 +179,11 @@ endef
 ./build/api_fs.o: ./src/api/api_fs.c | ./build
 	$(call compile,$<,$@)
 
-./build/wm.o: ./src/apps/IPDesktop/wm.c | ./build
+./build/api_window.o: ./src/api/api_window.c | ./build
 	$(call compile,$<,$@)
+
+./build/wm.o: ./src/apps/IPDesktop/wm.c | ./build
+	$(call compile,$<,$@,-O2)
 
 ./build/ipsfs.o: ./src/fs/ipsfs.c | ./build
 	$(call compile,$<,$@)
@@ -162,7 +191,9 @@ endef
 ./build/ipscc.o: ./src/ipscc/ipscc.c | ./build
 	$(call compile,$<,$@)
 
-./build/tcc_headers.tar: | ./build
+TCC_HEADER_FILES = $(shell find ./src/include ./src/tcc/tinycc/include -type f)
+
+./build/tcc_headers.tar: $(TCC_HEADER_FILES) | ./build
 	$(call say,HEADERS,TCC headers)
 	$(Q)rm -rf ./build/tcc_headers
 	$(Q)mkdir -p ./build/tcc_headers/tcc
@@ -238,6 +269,9 @@ disk-update: ./bin/boot.bin ./bin/kernel.bin ./bin/os.bin | disk-init
 	$(call say,DD,kernel.bin -> ipsos.img)
 	$(Q)dd if=./bin/kernel.bin of=ipsos.img bs=512 seek=1 conv=notrunc status=none
 
+install-examples: disk-update
+	$(call say,INSTALL,examples embedded in IPSFS on next boot)
+
 format-disk:
 	$(call say,FORMAT,ipsos.img)
 	$(Q)rm -f ipsos.img
@@ -249,10 +283,26 @@ clean:
 	$(Q)rm -f ./build/*.o ./build/tcc_headers.tar
 	$(Q)rm -rf ./build/tcc_headers
 
+# Stable 2D backend: this is the configuration verified by the project maintainer.
+QEMU_GPU ?= virtio-gpu-pci,xres=1280,yres=800,edid=on
+QEMU_DISPLAY ?= gtk,zoom-to-fit=off
+
+# VirGL/OpenGL is opt-in until the GL path is stable on the host.
+QEMU_VIRGL_GPU ?= virtio-gpu-gl,xres=1280,yres=800,edid=on
+QEMU_VIRGL_DISPLAY ?= gtk,gl=on,zoom-to-fit=off
+
 run: all
-	$(call say,QEMU,IPSOS)
-	$(Q)qemu-system-x86_64 -drive file=ipsos.img,format=raw,if=ide,index=0
+	$(call say,QEMU,IPSOS (stable 2D))
+	$(Q)qemu-system-x86_64 -m 256M -vga none -device $(QEMU_GPU) -display $(QEMU_DISPLAY) -drive file=ipsos.img,format=raw,if=ide,index=0 -debugcon stdio -no-reboot -no-shutdown
+
+run-virgl: all
+	$(call say,QEMU,IPSOS (VirGL/OpenGL experimental))
+	$(Q)qemu-system-x86_64 -m 256M -vga none -device $(QEMU_VIRGL_GPU) -display $(QEMU_VIRGL_DISPLAY) -drive file=ipsos.img,format=raw,if=ide,index=0 -debugcon stdio -no-reboot -no-shutdown
 
 rungdb: all
 	$(call say,QEMU,GDB)
-	$(Q)qemu-system-x86_64 -drive file=ipsos.img,format=raw,if=ide,index=0 -s -S
+	$(Q)qemu-system-x86_64 -m 256M -vga none -device $(QEMU_GPU) -display $(QEMU_DISPLAY) -drive file=ipsos.img,format=raw,if=ide,index=0 -debugcon stdio -no-reboot -no-shutdown -s -S
+
+rungdb-virgl: all
+	$(call say,QEMU,GDB (VirGL/OpenGL experimental))
+	$(Q)qemu-system-x86_64 -m 256M -vga none -device $(QEMU_VIRGL_GPU) -display $(QEMU_VIRGL_DISPLAY) -drive file=ipsos.img,format=raw,if=ide,index=0 -debugcon stdio -no-reboot -no-shutdown -s -S

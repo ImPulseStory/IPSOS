@@ -13,6 +13,8 @@
 #include "../include/math.h"
 #include "../include/setjmp.h"
 #include "../include/ipsfs.h"
+#include "../include/desktop.h"
+#include "../include/window.h"
 #include "../api/api.h"
 #include "../apps/terminal/terminal.h"
 #include "../include/task.h"
@@ -382,6 +384,44 @@ static void tcc_register_runtime_symbols(TCCState *state)
 static void tcc_register_symbols(TCCState *state)
 {
 #define TCC_SYMBOL(n) tcc_add_api_symbol(state, #n, (const void *)(uintptr_t)n)
+    TCC_SYMBOL(set_up);
+    TCC_SYMBOL(desktop_init);
+    TCC_SYMBOL(desktop_update);
+    TCC_SYMBOL(desktop_run);
+    TCC_SYMBOL(desktop_invalidate);
+    TCC_SYMBOL(desktop_invalidate_rect);
+    TCC_SYMBOL(wm_invalidate_all);
+    TCC_SYMBOL(wm_invalidate_rect);
+    TCC_SYMBOL(wm_draw);
+    TCC_SYMBOL(wm_draw_all);
+    TCC_SYMBOL(wm_handle_mouse);
+    TCC_SYMBOL(wm_set_renderer);
+    TCC_SYMBOL(wm_focus);
+    TCC_SYMBOL(wm_close);
+    TCC_SYMBOL(wm_hide);
+    TCC_SYMBOL(wm_create);
+    TCC_SYMBOL(wm_resize);
+    TCC_SYMBOL(wm_set_pos);
+    TCC_SYMBOL(wm_unvisible);
+    TCC_SYMBOL(window_create);
+    TCC_SYMBOL(window_destroy);
+    TCC_SYMBOL(window_show);
+    TCC_SYMBOL(window_hide);
+    TCC_SYMBOL(window_is_open);
+    TCC_SYMBOL(window_set_title);
+    TCC_SYMBOL(window_set_position);
+    TCC_SYMBOL(window_set_size);
+    TCC_SYMBOL(window_get_client_size);
+    TCC_SYMBOL(window_set_render_callback);
+    TCC_SYMBOL(window_set_gl_render_callback);
+    TCC_SYMBOL(window_invalidate);
+    TCC_SYMBOL(window_draw_clear);
+    TCC_SYMBOL(window_draw_pixel);
+    TCC_SYMBOL(window_draw_line);
+    TCC_SYMBOL(window_draw_rect);
+    TCC_SYMBOL(window_draw_rect_outline);
+    TCC_SYMBOL(window_draw_circle);
+    TCC_SYMBOL(window_draw_text);
     TCC_SYMBOL(term_print_char_cl);
     TCC_SYMBOL(term_print_cl);
     TCC_SYMBOL(term_print);
@@ -389,16 +429,91 @@ static void tcc_register_symbols(TCCState *state)
     TCC_SYMBOL(term_print_int);
     TCC_SYMBOL(term_clear);
     TCC_SYMBOL(term_run);
+    TCC_SYMBOL(gfx_init);
+    TCC_SYMBOL(gfx_ready);
+    TCC_SYMBOL(gfx_present);
+    TCC_SYMBOL(gfx_cursor_hardware_ready);
+    TCC_SYMBOL(gfx_cursor_move);
+    TCC_SYMBOL(gfx_driver_error);
+    TCC_SYMBOL(gfx_width);
+    TCC_SYMBOL(gfx_height);
+    TCC_SYMBOL(gfx_clear);
     TCC_SYMBOL(gfx_draw_pixel);
+    TCC_SYMBOL(gfx_get_pixel);
+    TCC_SYMBOL(gfx_draw_hline);
+    TCC_SYMBOL(gfx_draw_vline);
+    TCC_SYMBOL(gfx_draw_line);
     TCC_SYMBOL(gfx_draw_rect);
+    TCC_SYMBOL(gfx_draw_square);
+    TCC_SYMBOL(gfx_draw_rect_outline);
+    TCC_SYMBOL(gfx_draw_circle);
+    TCC_SYMBOL(gfx_fill_circle);
+    TCC_SYMBOL(gfx_draw_char);
+    TCC_SYMBOL(gfx_draw_char_bg);
+    TCC_SYMBOL(gfx_draw_text);
+    TCC_SYMBOL(gfx_draw_image);
+    TCC_SYMBOL(gfx_blit);
+    TCC_SYMBOL(gfx_set_clip);
+    TCC_SYMBOL(gfx_reset_clip);
+    TCC_SYMBOL(gfx_get_clip);
     TCC_SYMBOL(gfx_clear_screen);
     TCC_SYMBOL(gfx_print_char);
-    TCC_SYMBOL(gfx_get_pixel);
+    TCC_SYMBOL(gfx_print_gr_cl);
+    TCC_SYMBOL(gfx_print_char_gr_cl);
+    TCC_SYMBOL(virgl_init);
+    TCC_SYMBOL(virgl_ready);
+    TCC_SYMBOL(virgl_get_caps);
+    TCC_SYMBOL(virgl_get_capset);
+    TCC_SYMBOL(virgl_context_create);
+    TCC_SYMBOL(virgl_context_destroy);
+    TCC_SYMBOL(virgl_resource_create_3d);
+    TCC_SYMBOL(virgl_resource_attach);
+    TCC_SYMBOL(virgl_resource_inline_write);
+    TCC_SYMBOL(virgl_submit);
+    TCC_SYMBOL(virgl_last_error);
+    TCC_SYMBOL(glInit);
+    TCC_SYMBOL(glIsReady);
+    TCC_SYMBOL(glClearColor);
+    TCC_SYMBOL(glClear);
+    TCC_SYMBOL(glClearDepth);
+    TCC_SYMBOL(glEnable);
+    TCC_SYMBOL(glDisable);
+    TCC_SYMBOL(glDepthFunc);
+    TCC_SYMBOL(glDepthMask);
+    TCC_SYMBOL(glViewport);
+    TCC_SYMBOL(glFlush);
+    TCC_SYMBOL(glCreateContext);
+    TCC_SYMBOL(glDestroyContext);
+    TCC_SYMBOL(glCreateResource3D);
+    TCC_SYMBOL(glAttachResource);
+    TCC_SYMBOL(glSubmitCommands);
+    TCC_SYMBOL(glGetError);
+    TCC_SYMBOL(glGenBuffers);
+    TCC_SYMBOL(glBindBuffer);
+    TCC_SYMBOL(glBufferData);
+    TCC_SYMBOL(glBufferSubData);
+    TCC_SYMBOL(glEnableVertexAttribArray);
+    TCC_SYMBOL(glDisableVertexAttribArray);
+    TCC_SYMBOL(glVertexAttribPointer);
+    TCC_SYMBOL(glCreateShader);
+    TCC_SYMBOL(glShaderSourceTGSI);
+    TCC_SYMBOL(glCompileShader);
+    TCC_SYMBOL(glCreateProgram);
+    TCC_SYMBOL(glAttachShader);
+    TCC_SYMBOL(glLinkProgram);
+    TCC_SYMBOL(glUseProgram);
+    TCC_SYMBOL(glDrawArrays);
+    TCC_SYMBOL(glDrawElements);
     TCC_SYMBOL(input);
     TCC_SYMBOL(readKey);
     TCC_SYMBOL(mouse_x);
     TCC_SYMBOL(mouse_y);
     TCC_SYMBOL(mouse_moved);
+    TCC_SYMBOL(mouse_buttons);
+    TCC_SYMBOL(get_mouse_x);
+    TCC_SYMBOL(get_mouse_y);
+    TCC_SYMBOL(get_mouse_moved);
+    TCC_SYMBOL(get_mouse_buttons);
     TCC_SYMBOL(create_file);
     TCC_SYMBOL(deleteEx);
     TCC_SYMBOL(read_file);

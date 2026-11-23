@@ -11,6 +11,8 @@ SECTIONS
     .fini_array : { KEEP(*(.fini_array .fini_array.*)) }
     .eh_frame : { *(.eh_frame .eh_frame.*) }
     .gcc_except_table : { *(.gcc_except_table .gcc_except_table.*) }
+    /* Keep kernel BSS above the legacy VGA/BIOS memory hole. */
+    . = MAX(., 0x00100000);
     .bss :
     {
         __bss_start = .;
